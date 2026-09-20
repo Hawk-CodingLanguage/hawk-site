@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture — Hawk</title>
+<meta name="description" content="How the Hawk toolchain is built: frontend pipeline, bytecode VM, scoped arena runtime, and ownership lowering.">
+<link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M3 22 L14 7 L18.5 15.5 L10.5 24 Z" fill="#f5a524"/>
+        <path d="M12.5 26 L23 11 L29.5 20 L20 28.5 Z" fill="#4cc2ff" opacity="0.92"/>
+      </svg>
+      Hawk
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="language.html">Language</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="cli.html">CLI</a>
+      <a class="cta" href="https://github.com/Hawk-CodingLanguage/hawk-core">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="doc-wrap">
+  <h1>Architecture</h1>
+  <p class="lead">
+    The implementation is a strict one-way pipeline: every stage is a pure function over its input
+    and a diagnostic reporter, and later stages consume annotations rather than re-deriving
+    meaning.
+  </p>
+
+  <nav class="toc" aria-label="Contents">
+    <h3>Contents</h3>
+    <ol>
+      <li><a href="#pipeline">Pipeline</a></li>
+      <li><a href="#frontend">Lexer and parser</a></li>
+      <li><a href="#checker">Semantic analysis</a></li>
+      <li><a href="#bytecode">Bytecode and lowering</a></li>
+      <li><a href="#vm">Virtual machine</a></li>
+      <li><a href="#arena">Arena runtime</a></li>
+      <li><a href="#testing">Testing strategy</a></li>
+      <li><a href="#future">Where the future plugs in</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="pipeline">1. Pipeline</h2>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">hawk-core pipeline</span></div>
+    <pre><code class="hawk">source bytes
+   |
+   v
+diag.SourceFile                     spans, line index, snippets
+   |
+   v
+lexer.Lex           internal/lexer      tokens (ASI at newlines)
+   |
+   v
+parser.Parse        internal/parser     ast.File (spans only)
+   |
+   v
+sema.Check          internal/sema       sema.Program + sema.Info
+   |
+   v
+compiler.Compile    internal/compiler   bytecode.Program
+   |
+   v
+vm.Run              internal/vm         exit code / RuntimeError</code></pre>
+  </div>
+  <table>
+    <thead><tr><th>Package</th><th>Responsibility</th></tr></thead>
+    <tbody>
+      <tr><td><code>internal/token</code>, <code>internal/lexer</code></td><td>Token kinds and a scanner with Go-style semicolon insertion</td></tr>
+      <tr><td><code>internal/ast</code>, <code>internal/parser</code></td><td>Syntax tree carrying spans only; recursive descent with precedence climbing and error recovery</td></tr>
+      <tr><td><code>internal/types</code>, <code>internal/stdlib</code></td><td>Static types, type definitions and the builtin signature registry</td></tr>
+      <tr><td><code>internal/sema</code></td><td>Name resolution, type checking, constant folding, region ranks and ownership</td></tr>
+      <tr><td><code>internal/bytecode</code>, <code>internal/compiler</code></td><td>Instruction set and AST lowering</td></tr>
+      <tr><td><code>internal/vm</code></td><td>Values, arena runtime, interpreter loop and builtins</td></tr>
+      <tr><td><code>internal/semdiff</code>, <code>internal/hawkpatch</code></td><td>Semantic diff and structural patch application</td></tr>
+      <tr><td><code>internal/toolchain</code></td><td>Pipeline orchestration used by the CLI and tests</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="frontend">2. Lexer and parser</h2>
+  <p>
+    The lexer scans UTF-8, decodes escapes and literal rune values, and implements automatic
+    semicolon insertion: a newline terminates a statement after an identifier, literal,
+    <code>)</code>, <code>]</code>, <code>}</code>, <code>return</code>, <code>break</code>,
+    <code>continue</code> or <code>?</code>, and is suppressed inside parentheses and brackets.
+    Interpolated strings are split into literal and expression segments, where each expression
+    segment carries its byte range and optional format spec.
+  </p>
+  <p>
+    The parser is a hand-written recursive descent parser with a Pratt-style expression parser.
+    Two ambiguities are resolved without a separate grammar layer: <code>noStructLit</code>
+    disables composite literals while parsing control-flow headers, and <code>Name[...]</code> is
+    tentatively parsed as generic arguments and rolled back when it turns out to be an index.
+    Interpolation placeholders are re-lexed with positions anchored in the original file, so
+    diagnostics inside <code>{...}</code> point at the right column.
+  </p>
+
+  <h2 id="checker">3. Semantic analysis</h2>
+  <p>
+    Checking runs in passes: named types are declared first, then fields and variants are filled,
+    then imports are processed (so signatures may name imported types), and finally bodies are
+    checked. The checker returns an annotation bundle keyed by node pointer:
+  </p>
+  <table>
+    <thead><tr><th>Annotation</th><th>Records</th></tr></thead>
+    <tbody>
+      <tr><td><code>Types</code></td><td>the checked type of every expression</td></tr>
+      <tr><td><code>Ranks</code></td><td>the region rank of every expression</td></tr>
+      <tr><td><code>Consts</code></td><td>folded compile-time constants</td></tr>
+      <tr><td><code>Idents</code></td><td>the resolved symbol for each identifier use</td></tr>
+      <tr><td><code>Calls</code>, <code>Fields</code>, <code>Variants</code>, <code>Patterns</code></td><td>call, field, variant and pattern resolutions</td></tr>
+      <tr><td><code>FnSigs</code>, <code>MethodDefs</code>, <code>Defs</code></td><td>signatures, method receivers and named type definitions</td></tr>
+    </tbody>
+  </table>
+  <p>
+    <strong>Region ranks</strong> are the safety mechanism that replaces lifetime annotations. The
+    current region depth is tracked, and assigning or returning a heap value of a deeper rank than
+    its destination is a compile error with a <code>promote(...)</code> suggestion. Owned values
+    are tracked as affine: move positions are the right-hand sides of declarations and assignments,
+    call arguments, returns and literal elements; method receivers are borrowed.
+  </p>
+
+  <h2 id="bytecode">4. Bytecode and lowering</h2>
+  <p>
+    The compiler lowers the checked AST into fixed-width stack-machine instructions. Locals live in
+    stack slots; calls push a frame; returns truncate to the frame base. Instructions carry source
+    lines so runtime errors can report a call trace.
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">lowering highlights</span></div>
+    <pre><code class="hawk">locals      LOAD_LOCAL STORE_LOCAL MOVE_LOCAL DROP_LOCAL
+aggregates  GET_FIELD SET_FIELD GET_INDEX GET_SLICE NEW_LIST
+            NEW_STRUCT NEW_ENUM GET_TAG ENUM_FIELD
+control     JUMP JUMP_IF_FALSE JUMP_IF_TRUE_KEEP JUMP_IF_FALSE_KEEP
+calls       CALL RETURN BUILTIN
+memory      ALLOC_NEW ALLOC_ARRAY PROMOTE REGION_ENTER REGION_EXIT
+ownership   DROP ARENA_REWIND</code></pre>
+  </div>
+  <ul>
+    <li><code>?</code> stores its operand in a temp, tests the tag, and on failure emits
+      <code>ARENA_REWIND</code> followed by construction of the function's <code>None</code> or
+      <code>Err</code> and a return.</li>
+    <li><code>match</code> evaluates the subject into a local and tests each arm by loading from
+      that slot, so failed tests never leak operands on the stack.</li>
+    <li><code>comp</code> emits a placeholder constant; after all functions compile, each site is
+      wrapped in a synthetic function and executed in a sandboxed VM whose result patches the
+      constant.</li>
+  </ul>
+
+  <h2 id="vm">5. Virtual machine</h2>
+  <p>
+    Values are tagged: scalars inline, heap objects referenced. Frames record the function,
+    instruction pointer, local base and an arena snapshot taken at entry (used by
+    <code>?</code> and destructors). The VM has a 100,000-frame call-depth limit, so runaway
+    recursion fails with a clear error instead of exhausting memory. Builtins are dispatched from
+    a single registry shared by the checker, compiler and VM.
+  </p>
+
+  <h2 id="arena">6. Arena runtime</h2>
+  <p>
+    The arena is a list of slabs with a bump pointer. Allocation returns slots with capacity to the
+    end of the current slab, which is what allows a list at the bump head to grow in place.
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">arena state</span></div>
+    <pre><code class="hawk">slabs [][]Value     committed slabs
+slabIdx, head      bump pointer
+marks []mark       region stack (slab, head) snapshots
+gens []uint64      generation per depth
+
+enter()   push a mark, bump the depth generation
+exit()    restore the mark, advance the generation
+valid(v)  reject values whose (depth, generation) is stale
+atHead()  grow a list in place by advancing the pointer
+trim()    drop trailing slabs and tail capacity (mem.Trim)</code></pre>
+  </div>
+  <p>
+    Exiting a region is a pointer restore: cost does not depend on the number of objects allocated.
+    Promotion deep-copies into the parent region; strings are immutable and shared. In the
+    interpreter, physical reclamation is delegated to Go's collector, while the semantics and costs
+    of the model are enforced by the VM and checker. The planning AOT runtime replaces the slab
+    list with real page decommits.
+  </p>
+
+  <h2 id="testing">7. Testing strategy</h2>
+  <table>
+    <thead><tr><th>Layer</th><th>Coverage</th></tr></thead>
+    <tbody>
+      <tr><td>lexer</td><td>tokens, semicolon insertion, escapes, interpolation parts</td></tr>
+      <tr><td>parser</td><td>declarations, patterns, guards, imports, error recovery</td></tr>
+      <tr><td>sema</td><td>type errors, exhaustiveness, region ranks, ownership, constants</td></tr>
+      <tr><td>compiler</td><td>structural bytecode invariants over many programs and all examples</td></tr>
+      <tr><td>vm</td><td>arena growth, trim, generations, promotion and rewind</td></tr>
+      <tr><td>semdiff / hawkpatch</td><td>normalization, change detection, mutation atomicity</td></tr>
+      <tr><td>end-to-end</td><td>full programs, runtime errors, owned files, drop ordering, CLI exit codes</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="future">8. Where the future plugs in</h2>
+  <ul>
+    <li><strong>AOT compiler</strong> consumes the same bytecode program, lowers it through a
+      region-aware IR and emits C, Wasm or JavaScript.</li>
+    <li><strong>Fibers</strong> are additive: the scheduler interface exists, and per-fiber arenas
+      use the same arena type.</li>
+    <li><strong>Deterministic simulation testing</strong> requires three seams: capability-gated
+      clocks and randomness, a swappable scheduler hook, and a yield check at every
+      synchronization point.</li>
+    <li><strong>Capability security</strong> computes an effective mask per external module and
+      rejects denied uses during checking; <code>comp.HasCap</code> folds into compile-time
+      evaluation.</li>
+    <li><strong>Attribute macros</strong> will add an expansion pass between name resolution and
+      type checking, with user-defined compile-time functions rewriting the tree.</li>
+  </ul>
+
+  <div class="doc-footer">
+    The rationale for each decision is in the
+    <a href="https://github.com/Hawk-CodingLanguage/hawk-core/tree/main/docs/adr">architecture decision records</a>.
+  </div>
+</main>
+
+<footer class="site">
+  <div class="wrap footer-grid">
+    <div>
+      <strong style="color:var(--text)">Hawk</strong> — source released under the
+      <a href="https://github.com/Hawk-CodingLanguage/hawk-core/blob/main/LICENSE">MIT License</a>.
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="index.html">Docs</a>
+      <a href="language.html">Language</a>
+      <a href="cli.html">CLI</a>
+      <a href="https://github.com/sponsors/Hawk-CodingLanguage">Sponsor</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/highlight.js"></script>
+</body>
+</html>

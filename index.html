@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hawk — a systems language without a GC or a borrow checker</title>
+<meta name="description" content="Hawk is a statically typed systems and scripting language combining Go's structural simplicity, Rust's performance goals, and C's hardware transparency through scoped bump arenas and deterministic ownership.">
+<meta property="og:title" content="Hawk — a systems language without a GC or a borrow checker">
+<meta property="og:description" content="Scoped arenas, deterministic ownership, errors as values, compile-time evaluation. Interpreted today, AOT-compiled tomorrow.">
+<meta property="og:type" content="website">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap nav">
+    <a class="brand" href="index.html">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M3 22 L14 7 L18.5 15.5 L10.5 24 Z" fill="#f5a524"/>
+        <path d="M12.5 26 L23 11 L29.5 20 L20 28.5 Z" fill="#4cc2ff" opacity="0.92"/>
+      </svg>
+      Hawk
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="#language">Language</a>
+      <a href="#memory">Memory</a>
+      <a href="docs/language.html">Docs</a>
+      <a href="#roadmap">Roadmap</a>
+      <a class="cta" href="https://github.com/Hawk-CodingLanguage/hawk-core">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <h1>Systems performance,<br><span class="accent">without the ceremony.</span></h1>
+      <p class="lede">
+        Hawk is a statically typed systems and scripting language that pairs Go's
+        structural simplicity with Rust's performance goals and C's hardware
+        transparency — through scoped bump arenas and deterministic ownership
+        instead of a tracing collector or a borrow checker.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#start">Get started</a>
+        <a class="btn btn-ghost" href="docs/language.html">Language reference</a>
+      </div>
+      <div class="pills">
+        <span class="pill">Interpreter milestone</span>
+        <span class="pill">MIT licensed</span>
+        <span class="pill">Zero dependencies</span>
+        <span class="pill">Single binary CLI</span>
+      </div>
+    </div>
+
+    <div class="code">
+      <div class="code-head"><span class="dot"></span><span class="title">errors.hawk</span></div>
+      <pre><code class="hawk">use std.core.{ Option, Result }
+
+fn parse_port(text: str) -&gt; Result[u16, str] {
+    let n = text.parse_i64()?
+    if n &lt; 1 || n &gt; 65535 {
+        return Err("port out of range: {n}")
+    }
+    return Ok(n as u16)
+}
+
+fn main() {
+    match parse_port("8080") {
+        Ok(port) =&gt; println("listening on port {port}"),
+        Err(e)   =&gt; println("config error: {e}")
+    }
+}</code></pre>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">Design pillars</div>
+      <h2>Four ideas carry the whole language</h2>
+      <p>Everything else in Hawk follows from these decisions, and each one is enforced by the compiler rather than by convention.</p>
+    </div>
+    <div class="grid grid-4">
+      <div class="card">
+        <div class="tag">region</div>
+        <h3>Scoped bump arenas</h3>
+        <p>Allocation is a pointer bump. Leaving a <code>region</code> reclaims everything in O(1) with no per-object frees and no fragmentation. Lists at the bump head grow in place, and <code>mem.Trim()</code> releases unused pages.</p>
+      </div>
+      <div class="card">
+        <div class="tag">owned</div>
+        <h3>Deterministic ownership</h3>
+        <p>Resources such as files and sockets use <code>owned</code> bindings with affine move checking. Destructors run at scope exit, before <code>return</code>, and on loop exits — never delayed by a collector.</p>
+      </div>
+      <div class="card">
+        <div class="tag blue">Option · Result · ?</div>
+        <h3>Errors as values</h3>
+        <p>No null pointers and no exceptions. Absence and failure are ordinary enums, and the postfix <code>?</code> operator propagates them while rewinding the arena so failed steps leave no garbage.</p>
+      </div>
+      <div class="card">
+        <div class="tag green">comp</div>
+        <h3>Compile-time evaluation</h3>
+        <p><code>comp(expr)</code> and <code>comp { ... }</code> run normal Hawk code in a sandboxed, step-limited VM and bake the result into the binary. <code>comp.Assert(...)</code> fails the build on bad assumptions.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="language">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">Language</div>
+      <h2>Readable like Go, strict where it matters</h2>
+      <p>Automatic semicolons, <code>let</code> and <code>var</code>, methods on structs, exhaustive <code>match</code>, string interpolation, and built-in generic collections — with no lifetime annotations anywhere.</p>
+    </div>
+
+    <div class="split">
+      <div>
+        <div class="code">
+          <div class="code-head"><span class="dot"></span><span class="title">patterns.hawk</span></div>
+          <pre><code class="hawk">enum Event {
+    Key(KeyEvent),
+    Quit
+}
+
+struct KeyEvent {
+    key: i64,
+    pressed: bool
+}
+
+fn describe(e: Event) -&gt; str {
+    return match e {
+        Key(k) if k.key &lt; 0 =&gt; "invalid",
+        Key(KeyEvent { key, pressed: true })
+            if key &lt; 10 =&gt; "modifier {key}",
+        Key(KeyEvent { key, pressed: true }) =&gt; "key {key}",
+        Key(KeyEvent { pressed: false }) =&gt; "released",
+        Quit =&gt; "quit"
+    }
+}</code></pre>
+        </div>
+      </div>
+      <div class="prose">
+        <ul>
+          <li><strong>Exhaustive pattern matching.</strong> Enum subjects must cover every variant; guarded arms never count toward exhaustiveness.</li>
+          <li><strong>Struct patterns and nesting.</strong> Destructuring reads fields directly — no copies, no allocations, no lifetime churn.</li>
+          <li><strong>Ranges and or-patterns.</strong> <code>200..299</code>, <code>0x00 | 0xFF</code> and <code>A(n) | B(n)</code> with shared bindings.</li>
+          <li><strong>String interpolation.</strong> <code>"port {port} latency {latency:.2}"</code> captures variables, expressions and format specs directly.</li>
+          <li><strong>Explicit imports, no wildcards.</strong> <code>use std.fmt.{ Println, Format }</code> — collisions are impossible by construction.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="memory">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">Memory model</div>
+      <h2>Arenas you can see, lifetimes you never write</h2>
+      <p>Hawk replaces both manual memory management and tracing collection with two cooperating mechanisms: lexically scoped arenas for bulk data, and <code>owned</code> bindings for resources that need exact destruction moments.</p>
+    </div>
+
+    <div class="arena">
+      <div class="arena-row">
+        <div class="arena-label">region entry</div>
+        <div class="arena-track">
+          <div class="arena-used blue" style="width: 18%"></div>
+        </div>
+      </div>
+      <div class="arena-row">
+        <div class="arena-label">scratch growth</div>
+        <div class="arena-track">
+          <div class="arena-used blue" style="width: 18%"></div>
+          <div class="arena-used" style="width: 46%"></div>
+        </div>
+      </div>
+      <div class="arena-row">
+        <div class="arena-label">region exit</div>
+        <div class="arena-track">
+          <div class="arena-used grey" style="width: 18%"></div>
+        </div>
+      </div>
+      <div class="arena-legend">
+        <span class="legend-key"><span class="legend-swatch" style="background:#4cc2ff"></span> outer scope</span>
+        <span class="legend-key"><span class="legend-swatch" style="background:#f5a524"></span> region allocations</span>
+        <span class="legend-key"><span class="legend-swatch" style="background:rgba(148,163,184,0.35)"></span> reclaimed in O(1)</span>
+      </div>
+      <p class="arena-note" style="margin-top:16px;margin-bottom:0">
+        Exiting a region restores the bump pointer in a single instruction, regardless of how many
+        objects were allocated. The compiler's lexical rank rules reject any value that would escape
+        its region, and <code>promote(x)</code> makes an intentional copy outward explicit.
+      </p>
+    </div>
+
+    <div class="grid grid-3" style="margin-top:26px">
+      <div class="card">
+        <h3>Nothing to collect</h3>
+        <p>No stop-the-world pauses: regions are reclaimed deterministically, and owned values are dropped at precise points — at scope exit, before <code>return</code>, and on loop exits.</p>
+      </div>
+      <div class="card">
+        <h3>Nothing to annotate</h3>
+        <p>There are no lifetime parameters. Region ranks are lexical, so <code>region { ... }</code> nesting is the entire mental model, and escape errors suggest <code>promote(...)</code>.</p>
+      </div>
+      <div class="card">
+        <h3>Nothing to corrupt</h3>
+        <p>Arena values are generation-stamped: any stale access is caught as <code>use of value from an expired region</code> rather than reading freed memory, even in the interpreter.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tooling">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">Tooling</div>
+      <h2>One binary, structural from day one</h2>
+      <p>Hawk's toolchain treats code as syntax trees, not text. Diffs and patches operate on structure, so reformatting and import reordering never show up as changes.</p>
+    </div>
+
+    <div class="split">
+      <div>
+        <table>
+          <thead><tr><th>Command</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>hawk run</code></td><td>Compile and interpret a program</td></tr>
+            <tr><td><code>hawk check</code></td><td>Lex, parse, type check and compile; no execution</td></tr>
+            <tr><td><code>hawk diff</code></td><td>Semantic AST diff between two files</td></tr>
+            <tr><td><code>hawk patch apply</code></td><td>Apply typed <code>.hawkpatch</code> JSON, validated atomically</td></tr>
+            <tr><td><code>hawk build</code></td><td>AOT compilation to static binaries (planned)</td></tr>
+            <tr><td><code>hawk pkg</code></td><td>Git/URL packages with BLAKE3 lockfiles (planned)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="code">
+          <div class="code-head"><span class="dot"></span><span class="title">hawk diff --semantic</span></div>
+          <pre><code class="hawk">+ struct Metrics added
+~ struct Server (modified):
+  ~ field 'port': type changed from 'u16' to 'u32'
+~ fn start (modified):
+  ~ body modified</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="compare">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">Trade-offs</div>
+      <h2>Where Hawk sits</h2>
+      <p>The language is designed around one constraint: predictable performance without giving up readable, safe code.</p>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Metric</th><th>C</th><th>Go</th><th>Rust</th><th>Hawk</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Memory reclamation</td><td>Manual</td><td>Tracing GC</td><td>RAII</td><td>Scoped arenas + NLL drops</td></tr>
+        <tr><td>Fragmentation risk</td><td>High</td><td>Low</td><td>High over uptime</td><td>Zero inside regions</td></tr>
+        <tr><td>Borrow checker</td><td>None</td><td>None</td><td>Strict lifetimes</td><td>None — lexical ranks</td></tr>
+        <tr><td>Deallocation overhead</td><td>O(N) frees</td><td>GC sweeps</td><td>O(N) drops</td><td>O(1) bump reset</td></tr>
+        <tr><td>Concurrency</td><td>OS threads</td><td>Goroutines</td><td>Threads / async</td><td>M:N fibers (planned)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">Get started</div>
+      <h2>Running in a minute</h2>
+      <p>Hawk is written in Go and has no runtime dependencies. Build the toolchain and run an example.</p>
+    </div>
+    <div class="split">
+      <div>
+        <div class="step">
+          <div class="step-num">1</div>
+          <div>
+            <h3>Clone and build</h3>
+            <p>Requires Go 1.22 or newer. The result is a single static <code>hawk</code> binary.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div>
+            <h3>Run a program</h3>
+            <p>Interpret any <code>.hawk</code> file directly, or check it without executing.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div>
+            <h3>Read the reference</h3>
+            <p>The docs cover the implemented language, the standard library, and the architecture behind it.</p>
+          </div>
+        </div>
+      </div>
+      <div class="code">
+        <div class="code-head"><span class="dot"></span><span class="title">terminal</span></div>
+        <pre><code class="hawk">git clone https://github.com/Hawk-CodingLanguage/hawk-core
+cd hawk-core
+go build -o hawk ./cmd/hawk
+
+./hawk run examples/tour.hawk
+./hawk run examples/patterns.hawk
+./hawk run examples/errors.hawk
+./hawk check examples/tour.hawk</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="roadmap">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">Status</div>
+      <h2>Where the implementation stands</h2>
+      <p>Hawk ships in milestones. The interpreter is complete and tested; the compiler, runtime and ecosystem are staged and documented in architecture decision records.</p>
+    </div>
+    <ul class="status">
+      <li>
+        <span class="badge done">Done</span>
+        <span><span class="what">Interpreter</span> — lexer, parser, type checker, bytecode VM, arenas, ownership, standard library, CLI, semantic diff and patch.</span>
+      </li>
+      <li>
+        <span class="badge done">Done</span>
+        <span><span class="what">Compile-time evaluation</span> — <code>comp</code> expressions and blocks, <code>comp.Assert</code>, sandboxed execution quotas.</span>
+      </li>
+      <li>
+        <span class="badge next">Next</span>
+        <span><span class="what">User generics and closures</span> — monomorphized generic functions, types, and callable function values.</span>
+      </li>
+      <li>
+        <span class="badge next">Next</span>
+        <span><span class="what">Full non-lexical lifetimes</span> — owned fields and recursive destruction for containers.</span>
+      </li>
+      <li>
+        <span class="badge plan">Planned</span>
+        <span><span class="what">AOT compiler</span> — region-aware IR with C, Wasm and JavaScript backends producing static binaries.</span>
+      </li>
+      <li>
+        <span class="badge plan">Planned</span>
+        <span><span class="what">Fibers and kernel I/O</span> — M:N scheduler over io_uring, epoll, kqueue and IOCP; deterministic simulation testing.</span>
+      </li>
+      <li>
+        <span class="badge plan">Planned</span>
+        <span><span class="what">Package ecosystem</span> — Git and URL dependencies, BLAKE3 lockfiles, vendoring, capability security.</span>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section id="docs">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">Documentation</div>
+      <h2>Learn it, then read the reasoning</h2>
+      <p>The guides describe how to use Hawk; the architecture decision records explain why it works the way it does.</p>
+    </div>
+    <div class="grid grid-3">
+      <a class="card doc-card" href="docs/language.html">
+        <h3>Language reference</h3>
+        <p>Types, bindings, control flow, patterns, regions, ownership, the standard library and known limitations.</p>
+      </a>
+      <a class="card doc-card" href="docs/architecture.html">
+        <h3>Architecture</h3>
+        <p>The compilation pipeline, bytecode and VM, arena runtime, and how ownership is lowered.</p>
+      </a>
+      <a class="card doc-card" href="docs/cli.html">
+        <h3>CLI and tooling</h3>
+        <p><code>hawk run</code>, <code>check</code>, <code>diff</code> and <code>patch</code> with exit codes and conventions.</p>
+      </a>
+    </div>
+    <p style="margin-top:22px;color:var(--muted)">
+      The complete design record — twenty-three ADRs covering arenas, ranks, ownership, generics,
+      fibers, AOT, capabilities and simulation — lives in
+      <a href="https://github.com/Hawk-CodingLanguage/hawk-core/tree/main/docs/adr">hawk-core/docs/adr</a>.
+    </p>
+  </div>
+</section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap footer-grid">
+    <div>
+      <strong style="color:var(--text)">Hawk</strong> — source released under the
+      <a href="https://github.com/Hawk-CodingLanguage/hawk-core/blob/main/LICENSE">MIT License</a>.
+      <br>
+      Revenue-generating use is invited to
+      <a href="https://github.com/sponsors/Hawk-CodingLanguage">sponsor maintenance</a>.
+    </div>
+    <div class="footer-links">
+      <a href="docs/language.html">Language</a>
+      <a href="docs/architecture.html">Architecture</a>
+      <a href="docs/cli.html">CLI</a>
+      <a href="https://github.com/Hawk-CodingLanguage/hawk-core">Repository</a>
+      <a href="https://github.com/Hawk-CodingLanguage/hawk-core/issues">Issues</a>
+      <a href="https://github.com/sponsors/Hawk-CodingLanguage">Sponsor</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/highlight.js"></script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation — Hawk</title>
+<meta name="description" content="Hawk documentation: language reference, architecture guide and CLI tooling.">
+<link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M3 22 L14 7 L18.5 15.5 L10.5 24 Z" fill="#f5a524"/>
+        <path d="M12.5 26 L23 11 L29.5 20 L20 28.5 Z" fill="#4cc2ff" opacity="0.92"/>
+      </svg>
+      Hawk
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="language.html">Language</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="cli.html">CLI</a>
+      <a class="cta" href="https://github.com/Hawk-CodingLanguage/hawk-core">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="doc-wrap">
+  <h1>Documentation</h1>
+  <p class="lead">
+    Three guides cover using Hawk, understanding the implementation, and driving the toolchain.
+    The architecture decision records hold the reasoning behind every major choice.
+  </p>
+
+  <div class="grid grid-3" style="margin-top:34px">
+    <a class="card doc-card" href="language.html">
+      <div class="tag">Reference</div>
+      <h3>Language</h3>
+      <p>Types, bindings, control flow, pattern matching, regions, ownership, errors as values,
+        compile-time evaluation and the standard library.</p>
+    </a>
+    <a class="card doc-card" href="architecture.html">
+      <div class="tag blue">Internals</div>
+      <h3>Architecture</h3>
+      <p>The frontend pipeline, bytecode and VM, the scoped arena runtime, and how ownership and
+        regions are lowered.</p>
+    </a>
+    <a class="card doc-card" href="cli.html">
+      <div class="tag green">Tooling</div>
+      <h3>CLI</h3>
+      <p><code>hawk run</code>, <code>check</code>, <code>diff</code> and <code>patch</code> with
+        exit codes, output conventions and examples.</p>
+    </a>
+  </div>
+
+  <h2>Architecture decision records</h2>
+  <p>
+    Hawk documents every significant design decision as a numbered ADR: from the choice of Go for
+    the toolchain and the bytecode VM, through arena semantics and lexical rank safety, to planned
+    work on AOT compilation, fibers, packages, capability security and deterministic simulation
+    testing.
+  </p>
+  <p>
+    <a href="https://github.com/Hawk-CodingLanguage/hawk-core/tree/main/docs/adr">Browse the ADRs on GitHub</a>
+    &nbsp;·&nbsp;
+    <a href="https://github.com/Hawk-CodingLanguage/hawk-core/blob/main/docs/todo.md">Milestone checklist</a>
+  </p>
+</main>
+
+<footer class="site">
+  <div class="wrap footer-grid">
+    <div>
+      <strong style="color:var(--text)">Hawk</strong> — source released under the
+      <a href="https://github.com/Hawk-CodingLanguage/hawk-core/blob/main/LICENSE">MIT License</a>.
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="language.html">Language</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="cli.html">CLI</a>
+      <a href="https://github.com/sponsors/Hawk-CodingLanguage">Sponsor</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/highlight.js"></script>
+</body>
+</html>

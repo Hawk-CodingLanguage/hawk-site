@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CLI reference — Hawk</title>
+<meta name="description" content="The hawk command line: run, check, diff, patch and planned build, package and merge commands, with exit codes and output conventions.">
+<link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M3 22 L14 7 L18.5 15.5 L10.5 24 Z" fill="#f5a524"/>
+        <path d="M12.5 26 L23 11 L29.5 20 L20 28.5 Z" fill="#4cc2ff" opacity="0.92"/>
+      </svg>
+      Hawk
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="language.html">Language</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="cli.html">CLI</a>
+      <a class="cta" href="https://github.com/Hawk-CodingLanguage/hawk-core">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="doc-wrap">
+  <h1>CLI reference</h1>
+  <p class="lead">
+    The toolchain is a single binary, <code>hawk</code>. Program output goes to stdout, toolchain
+    messages go to stderr, and exit codes are meaningful for scripts.
+  </p>
+
+  <h2>Commands</h2>
+  <table>
+    <thead><tr><th>Command</th><th>Behavior</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>hawk run &lt;file.hawk&gt; [-- args...]</code></td>
+        <td>Compile and interpret. Arguments after <code>--</code> appear in <code>os.args()</code>,
+          with the script path as element zero. The exit code is the program's.</td>
+      </tr>
+      <tr>
+        <td><code>hawk check &lt;file.hawk&gt;</code></td>
+        <td>Run the full frontend without executing. Silent on success; diagnostics to stderr and
+          exit 1 on errors.</td>
+      </tr>
+      <tr>
+        <td><code>hawk diff [--semantic] [--json] &lt;old&gt; &lt;new&gt;</code></td>
+        <td>Semantic AST diff. Exit 0 when there are no semantic changes, 1 when there are, 2 on
+          usage or parse errors.</td>
+      </tr>
+      <tr>
+        <td><code>hawk patch apply [--check] [--dry-run] &lt;patch.hawkpatch&gt; [target]</code></td>
+        <td>Apply a structural patch. Validates and type-checks the result before writing; writes
+          go through a temp file and rename.</td>
+      </tr>
+      <tr>
+        <td><code>hawk build &lt;file.hawk&gt; [-o out]</code></td>
+        <td>Type-checks, then reports that AOT compilation is planned and exits 2.</td>
+      </tr>
+      <tr>
+        <td><code>hawk pkg &lt;command&gt;</code></td>
+        <td>Reports that package management is planned and exits 2.</td>
+      </tr>
+      <tr>
+        <td><code>hawk merge &lt;base&gt; &lt;ours&gt; &lt;theirs&gt;</code></td>
+        <td>Structural three-way merge is planned; currently exits 2 with a pointer to the ADR.</td>
+      </tr>
+      <tr>
+        <td><code>hawk version</code>, <code>hawk help</code></td>
+        <td>Version string and usage.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Exit codes</h2>
+  <table>
+    <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>0</code></td><td>Success, or no semantic changes for <code>diff</code></td></tr>
+      <tr><td><code>1</code></td><td>User or program error: diagnostics, runtime failure, or differences found by <code>diff</code></td></tr>
+      <tr><td><code>2</code></td><td>Usage error, or a not-yet-implemented command</td></tr>
+      <tr><td>program-defined</td><td><code>hawk run</code> returns the value passed to <code>os.exit(code)</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Running programs</h2>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">terminal</span></div>
+    <pre><code class="hawk">$ hawk run examples/tour.hawk
+sum 1..10 = 55
+fib(10) = 55
+...
+
+$ hawk run tool.hawk -- input.txt --verbose
+$ echo $?
+0
+
+$ hawk run failing.hawk
+hawk: runtime error: integer division by zero
+  in helper at line 2
+  called from main (line 5)</code></pre>
+  </div>
+
+  <h2>Semantic diff</h2>
+  <p>
+    <code>diff</code> parses both files and compares structure. Formatting changes, comment edits
+    and reordered imports produce no output; structural changes are reported by intent.
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">terminal</span></div>
+    <pre><code class="hawk">$ hawk diff --semantic old.hawk new.hawk
++ struct Metrics added
+~ struct Server (modified):
+  ~ field 'port': type changed from 'u16' to 'u32'
+~ fn start (modified):
+  ~ body modified
+
+$ hawk diff --json old.hawk new.hawk
+{
+  "old_file": "old.hawk",
+  "new_file": "new.hawk",
+  "changes": [
+    { "op": "change_field_type", "owner_kind": "struct", "owner": "Server",
+      "member": "port", "from": "u16", "to": "u32" },
+    { "op": "add_decl", "owner": "Metrics", "note": "struct" },
+    { "op": "change_body", "owner_kind": "fn", "owner": "start" }
+  ]
+}</code></pre>
+  </div>
+
+  <h2>Structural patches</h2>
+  <p>
+    A <code>.hawkpatch</code> document is JSON with a target, an optional base hash and a list of
+    typed mutations. Supported operations include <code>add_field</code>,
+    <code>remove_field</code>, <code>rename_field</code>, <code>set_field_type</code>,
+    <code>add_variant</code>, <code>remove_variant</code>, <code>rename_symbol</code>,
+    <code>add_import</code>, <code>remove_import</code> and <code>insert_arm</code>.
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">fix.hawkpatch</span></div>
+    <pre><code class="hawk">{
+  "target": "src/models.hawk",
+  "base_hash": "sha256:...",
+  "mutations": [
+    { "op": "rename_symbol", "scope": "global",
+      "old_name": "validate_session", "new_name": "check_session" },
+    { "op": "insert_arm", "function": "classify",
+      "match_index": 0, "arm": "1 =&gt; \"one\"" }
+  ]
+}</code></pre>
+  </div>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">terminal</span></div>
+    <pre><code class="hawk">$ hawk patch apply --check fix.hawkpatch    # validate, write nothing
+$ hawk patch apply --dry-run fix.hawkpatch  # print the patched source
+$ hawk patch apply fix.hawkpatch            # validate, then write atomically</code></pre>
+  </div>
+  <div class="callout">
+    A rejected patch never touches disk. The patched source is re-parsed and type-checked first; if
+    it does not compile, the command exits 1 and leaves the file byte-for-byte unchanged.
+  </div>
+
+  <h2>Planned commands</h2>
+  <ul>
+    <li><code>hawk build</code> gains real targets and flags for native, C, Wasm and JavaScript
+      output.</li>
+    <li><code>hawk pkg</code> gains <code>get</code>, <code>sync</code>, <code>upgrade</code>,
+      <code>vendor</code> and <code>audit</code> with BLAKE3 lockfiles and capability
+      clamps.</li>
+    <li><code>hawk merge</code> becomes a structural three-way merge and a git merge driver.</li>
+  </ul>
+
+  <div class="doc-footer">
+    See the <a href="language.html">language reference</a> or the
+    <a href="architecture.html">architecture guide</a> for more.
+  </div>
+</main>
+
+<footer class="site">
+  <div class="wrap footer-grid">
+    <div>
+      <strong style="color:var(--text)">Hawk</strong> — source released under the
+      <a href="https://github.com/Hawk-CodingLanguage/hawk-core/blob/main/LICENSE">MIT License</a>.
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="index.html">Docs</a>
+      <a href="language.html">Language</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="https://github.com/sponsors/Hawk-CodingLanguage">Sponsor</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/highlight.js"></script>
+</body>
+</html>

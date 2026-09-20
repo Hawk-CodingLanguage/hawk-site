@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Language reference — Hawk</title>
+<meta name="description" content="The implemented Hawk language: types, bindings, control flow, pattern matching, regions, ownership, errors as values, compile-time evaluation and the standard library.">
+<link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M3 22 L14 7 L18.5 15.5 L10.5 24 Z" fill="#f5a524"/>
+        <path d="M12.5 26 L23 11 L29.5 20 L20 28.5 Z" fill="#4cc2ff" opacity="0.92"/>
+      </svg>
+      Hawk
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="../index.html#features">Features</a>
+      <a href="index.html">Docs</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="cli.html">CLI</a>
+      <a class="cta" href="https://github.com/Hawk-CodingLanguage/hawk-core">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="doc-wrap">
+  <h1>Language reference</h1>
+  <p class="lead">
+    This is the reference for the implemented interpreter milestone. Anything not listed here is
+    either reported as an explicit unsupported-feature diagnostic or staged in the roadmap.
+  </p>
+
+  <nav class="toc" aria-label="Contents">
+    <h3>Contents</h3>
+    <ol>
+      <li><a href="#structure">Program structure and imports</a></li>
+      <li><a href="#lexical">Lexical structure and literals</a></li>
+      <li><a href="#types">Types</a></li>
+      <li><a href="#bindings">Bindings and assignment</a></li>
+      <li><a href="#control">Control flow and pattern matching</a></li>
+      <li><a href="#memory">Memory: regions, ownership, views</a></li>
+      <li><a href="#errors">Errors as values</a></li>
+      <li><a href="#comptime">Compile-time evaluation</a></li>
+      <li><a href="#stdlib">Standard library</a></li>
+      <li><a href="#diagnostics">Diagnostics</a></li>
+      <li><a href="#limits">Known limitations</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="structure">1. Program structure and imports</h2>
+  <p>
+    A program is one file of declarations. Execution starts at <code>fn main()</code>, which takes
+    no parameters and returns no value. Declarations are <code>use</code>, <code>const</code>,
+    <code>struct</code>, <code>enum</code>, <code>impl</code> and <code>fn</code>.
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">structure.hawk</span></div>
+    <pre><code class="hawk">use std.fmt.{ Println, Format }
+use std.core.{ Option, Result }
+
+const LIMIT: i64 = 10
+
+struct P { x: i64 }
+
+impl P {
+    fn get(self) -&gt; i64 { return self.x }
+}
+
+fn main() {
+    Println("hello")
+}</code></pre>
+  </div>
+  <p>
+    <code>use</code> is the only import keyword and there are no wildcards. Standard library
+    modules resolve by canonical path (<code>std.fmt</code>, <code>std.mem</code>,
+    <code>std.collections</code>, <code>std.core</code>, <code>std.fs</code>) or by their unique
+    last segment, so <code>math.sqrt(4.0)</code> works without an import. Grouped imports may
+    alias members: <code>use std.collections.{ List, Span as View }</code>. Type members and enum
+    variants can be imported too: <code>use Shape.{ Circle, Rect }</code>.
+  </p>
+  <div class="callout">
+    Wildcards are rejected: <em>wildcard imports are not supported; import names explicitly (no
+    wildcard pollution)</em>. URL imports required the package manager and currently report that
+    they are planned.
+  </div>
+
+  <h2 id="lexical">2. Lexical structure and literals</h2>
+  <ul>
+    <li>Comments: <code>// line</code> and <code>/* block */</code>.</li>
+    <li>Statements end at newlines (Go-style automatic semicolon insertion) and are ignored inside
+      <code>(...)</code> and <code>[...]</code>, so an opening brace or literal must stay on the
+      same line as the construct that precedes it.</li>
+    <li>Integers: decimal, <code>0x</code> hex, <code>0b</code> binary, <code>0o</code> octal,
+      with <code>_</code> separators. Floats support exponents and underscores.</li>
+    <li>Strings: <code>"..."</code> with escapes, backtick raw strings (never interpolated), and
+      rune literals such as <code>'a'</code> that produce integer code points.</li>
+  </ul>
+  <p>
+    Double-quoted strings interpolate <code>{expr}</code> and <code>{expr:spec}</code>; literal
+    braces are written <code>{{</code> and <code>}}</code> or escaped with
+    <code>\{</code> and <code>\}</code>. Raw strings do not interpolate.
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">interpolation.hawk</span></div>
+    <pre><code class="hawk">fn main() {
+    let name = "Ada"
+    let latency = 1.4285
+    let port = 8080
+
+    println("server {name} on port {port}")
+    println("latency {latency:.2} ms")
+    println("port 0x{port:04X}, next {port + 1}")
+    println("literal braces {{like this}}")
+}</code></pre>
+  </div>
+  <p>
+    Specs use the grammar <code>[0][width][.precision][verb]</code> with verbs
+    <code>d</code>, <code>x</code>, <code>X</code>, <code>b</code>, <code>o</code>,
+    <code>f</code>, <code>e</code>, <code>E</code> and <code>s</code>. A leading
+    <code>0</code> zero-pads; otherwise the value is right-aligned to the width.
+  </p>
+
+  <h2 id="types">3. Types</h2>
+  <table>
+    <thead><tr><th>Type</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td><code>bool</code></td><td><code>true</code> and <code>false</code></td></tr>
+      <tr><td><code>i8</code>–<code>i64</code>, <code>u8</code>–<code>u64</code></td><td>literals default to <code>i64</code></td></tr>
+      <tr><td><code>f32</code>, <code>f64</code></td><td>literals default to <code>f64</code></td></tr>
+      <tr><td><code>str</code></td><td>immutable UTF-8 bytes; <code>s[i]</code> yields <code>u8</code>; <code>len</code> counts bytes</td></tr>
+      <tr><td><code>List[T]</code></td><td>growable array with reference semantics</td></tr>
+      <tr><td><code>Map[K, V]</code></td><td>insertion-ordered; keys must be bool, numeric or <code>str</code></td></tr>
+      <tr><td><code>Span[T]</code></td><td>non-owning view over a list or another span</td></tr>
+      <tr><td><code>Option[T]</code>, <code>Result[T, E]</code></td><td>built-in enums, exported by <code>std.core</code></td></tr>
+      <tr><td><code>File</code></td><td>operating-system file resource, used with <code>owned</code></td></tr>
+      <tr><td>user <code>struct</code> / <code>enum</code></td><td>named fields and variants, methods via <code>impl</code></td></tr>
+    </tbody>
+  </table>
+  <p>
+    There are no implicit numeric conversions except literal adoption:
+    <code>let x: u8 = 5</code> is fine, but assigning an <code>i64</code> variable to a
+    <code>u8</code> requires <code>value as u8</code>. Casts truncate and wrap like C.
+  </p>
+
+  <h2 id="bindings">4. Bindings and assignment</h2>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">bindings.hawk</span></div>
+    <pre><code class="hawk">let  immutable = 1
+var  mutable_value: i64 = 2
+owned file = File.open("out.txt")
+
+mutable_value += 1
+file.write("data")</code></pre>
+  </div>
+  <p>
+    Assignment targets are variables, struct fields and container elements. Compound assignment
+    exists for every arithmetic and bitwise operator. Owned values are affine: assigning, passing or
+    returning them moves ownership, and using a moved value is a compile error. Method receivers
+    are borrowed, so calling <code>file.write(...)</code> does not consume the handle.
+  </p>
+
+  <h2 id="control">5. Control flow and pattern matching</h2>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">control.hawk</span></div>
+    <pre><code class="hawk">if cond { ... } else if other { ... } else { ... }
+
+while cond { ... }
+
+for var i = 0; i &lt; n; i += 1 { ... }
+for x in collection { ... }        // List, Span, str, Map keys
+for { ... }                        // infinite
+
+let label = match status {
+    200..299 =&gt; "OK",
+    400 =&gt; "Bad Request",
+    404 =&gt; "Not Found",
+    500..599 =&gt; "Internal Error",
+    _ =&gt; "Unknown"
+}</code></pre>
+  </div>
+  <p>Pattern forms:</p>
+  <table>
+    <thead><tr><th>Form</th><th>Example</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>wildcard</td><td><code>_</code></td><td>matches anything, binds nothing</td></tr>
+      <tr><td>binding</td><td><code>n</code></td><td>matches anything, binds it</td></tr>
+      <tr><td>literal</td><td><code>0</code>, <code>-1</code>, <code>"ok"</code>, <code>true</code></td><td></td></tr>
+      <tr><td>enum variant</td><td><code>Some(x)</code>, <code>Color.Red</code>, <code>Rect(w, h)</code></td><td>payload patterns nest</td></tr>
+      <tr><td>struct</td><td><code>Point { x, y: 0 }</code></td><td>shorthand binds the field; all fields with irrefutable subpatterns is exhaustive</td></tr>
+      <tr><td>range</td><td><code>200..299</code>, <code>0x20..0x7E</code></td><td>inclusive; bounds must be compile-time constants</td></tr>
+      <tr><td>or</td><td><code>0x00 | 0xFF</code>, <code>A(n) | B(n)</code></td><td>alternatives must bind the same names with the same types</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Arms may add a guard: <code>Key(KeyEvent { key, pressed: true }) if key &lt; 10 =&gt; ...</code>.
+    Guarded arms never satisfy exhaustiveness, so a fallback arm is required. Enum matches must
+    cover every variant unless a wildcard or binding arm is present.
+  </p>
+
+  <h2 id="memory">6. Memory: regions, ownership, views</h2>
+  <h3>Scoped arenas</h3>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">regions.hawk</span></div>
+    <pre><code class="hawk">region {
+    let scratch = alloc.NewArray[i64](128)   // zero-initialized
+    scratch[0] = 1
+    let cell = alloc.New[i64](7)
+    println(promote(scratch))                // copy outward
+}                                            // reclaimed in O(1)
+
+let released = mem.Trim()</code></pre>
+  </div>
+  <ul>
+    <li>Allocation inside a region is a pointer bump; leaving the region restores the arena in a
+      single instruction.</li>
+    <li><code>alloc.New[T](v)</code> allocates an initialized cell;
+      <code>alloc.NewArray[T](n)</code> allocates zeroed elements.</li>
+    <li><code>promote(x)</code> copies a value into the enclosing region and is required for
+      anything that escapes; escaping without it is a compile error with a
+      <code>promote</code> suggestion.</li>
+    <li>Lists sitting at the bump head grow in place without copying; <code>mem.Trim()</code>
+      releases unused committed capacity.</li>
+  </ul>
+
+  <h3>Owned bindings</h3>
+  <p>
+    <code>owned x = expr</code> requires a resource type: a struct with a <code>close</code> or
+    <code>drop</code> method, or the built-in <code>File</code>. The destructor runs at the end of
+    the binding's scope, before every <code>return</code>, and before <code>break</code> or
+    <code>continue</code> for scopes opened inside the loop. Explicit <code>close()</code> is
+    allowed and makes the automatic drop a no-op.
+  </p>
+
+  <h3>Zero-copy views</h3>
+  <p>
+    Slicing a <code>str</code> shares its bytes. <code>list.span()</code> and
+    <code>list[a:b]</code> produce a <code>Span[T]</code> that indexes, iterates and assigns
+    through to the backing list. A span cannot outlive its container, which the region rank rules
+    enforce.
+  </p>
+
+  <h2 id="errors">7. Errors as values</h2>
+  <p>
+    Hawk has no null and no exceptions. Absence and failure are built-in enums imported from
+    <code>std.core</code>; tags are fixed at <code>None = 0</code>, <code>Some = 1</code>,
+    <code>Ok = 0</code>, <code>Err = 1</code>.
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">errors.hawk</span></div>
+    <pre><code class="hawk">fn parse_double(s: str) -&gt; Result[i64, str] {
+    let n = s.parse_i64()?      // Err(e) returns Err(e)
+    return Ok(n * 2)
+}
+
+fn first_even(xs: List[i64]) -&gt; Option[i64] {
+    for x in xs {
+        if x % 2 == 0 { return Some(x) }
+    }
+    return None
+}</code></pre>
+  </div>
+  <p>
+    The postfix <code>?</code> unwraps the success case and propagates failure to the enclosing
+    function, whose return type must match: a <code>Result</code> function propagates
+    <code>Err</code> with the identical error type, and an <code>Option</code> function propagates
+    <code>None</code>. On the failure branch the compiler rewinds the arena to its position at
+    function entry, so temporaries allocated by a failed step are reclaimed in O(1).
+  </p>
+  <table>
+    <thead><tr><th>Type</th><th>Methods</th></tr></thead>
+    <tbody>
+      <tr><td><code>Option[T]</code></td><td><code>is_some</code>, <code>is_none</code>, <code>unwrap</code>, <code>unwrap_or</code>, <code>ok_or(err)</code></td></tr>
+      <tr><td><code>Result[T, E]</code></td><td><code>is_ok</code>, <code>is_err</code>, <code>unwrap</code>, <code>unwrap_err</code>, <code>unwrap_or</code>, <code>ok()</code></td></tr>
+    </tbody>
+  </table>
+  <p>
+    Capitalized aliases (<code>IsSome</code>, <code>Unwrap</code>, <code>OkOr</code>, and so on)
+    are available for each method. <code>unwrap</code> on <code>None</code> or <code>Err</code> is
+    a runtime error with a source location and a call trace.
+  </p>
+
+  <h2 id="comptime">8. Compile-time evaluation</h2>
+  <p>
+    <code>comp</code> runs ordinary Hawk code during compilation using the same checker, compiler
+    and virtual machine as the runtime.
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">compiletime.hawk</span></div>
+    <pre><code class="hawk">const BufferSize: i64 = comp(1024 * 1024)
+const Greeting: str   = comp("hawk" + "!")
+
+fn fib(n: i64) -&gt; i64 {
+    if n &lt; 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+const FIB20: i64 = comp { return fib(20) }
+
+const TABLE_SUM: i64 = comp {
+    var total = 0
+    for var i = 0; i &lt; 10; i += 1 { total += i * i }
+    return total
+}
+
+comp.Assert(BufferSize == 1048576, "buffer size must be 1 MiB")</code></pre>
+  </div>
+  <ul>
+    <li><code>comp(expr)</code> infers its type from context; <code>comp { ... }</code> must
+      <code>return</code> a value and needs a scalar type context.</li>
+    <li>Results are scalars and <code>str</code> today; composite results are staged for the AOT
+      milestone.</li>
+    <li>Evaluation is sandboxed: no <code>os.*</code> or <code>File.*</code>, output is discarded,
+      execution is capped at 10^7 VM instructions and 100,000 call frames, and each evaluation uses
+      an isolated arena. Results are deterministic.</li>
+    <li><code>comp.Assert(cond, msg)</code> fails the build with
+      <code>compile-time assertion failed: &lt;msg&gt;</code>.</li>
+  </ul>
+
+  <h2 id="stdlib">9. Standard library</h2>
+  <p>Prelude: <code>print</code>, <code>println</code>, <code>eprintln</code>,
+    <code>len</code>, <code>panic</code>, <code>assert(cond, msg)</code>,
+    <code>promote</code>.</p>
+
+  <h3>str</h3>
+  <table>
+    <thead><tr><th>Function / method</th><th>Signature</th></tr></thead>
+    <tbody>
+      <tr><td><code>len(s)</code>, <code>s.len()</code></td><td><code>str -&gt; i64</code> (bytes)</td></tr>
+      <tr><td><code>s.contains(sub)</code>, <code>s.starts_with(p)</code>, <code>s.ends_with(suf)</code></td><td><code>str, str -&gt; bool</code></td></tr>
+      <tr><td><code>s.find(sub)</code></td><td><code>str, str -&gt; i64</code>, -1 when absent</td></tr>
+      <tr><td><code>s.split(sep)</code></td><td><code>str, str -&gt; List[str]</code></td></tr>
+      <tr><td><code>s.trim()</code>, <code>s.upper()</code>, <code>s.lower()</code></td><td><code>str -&gt; str</code></td></tr>
+      <tr><td><code>s.parse_i64()</code>, <code>s.parse_f64()</code></td><td><code>-&gt; Result[..., str]</code></td></tr>
+      <tr><td><code>str.from_i64</code>, <code>str.from_f64</code>, <code>str.from_bool</code></td><td><code>-&gt; str</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>List and Map</h3>
+  <table>
+    <thead><tr><th>Function / method</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td><code>List.new[T]()</code></td><td>empty list</td></tr>
+      <tr><td><code>l.append(v)</code>, <code>l.extend(other)</code>, <code>l.insert(i, v)</code></td><td>mutate the list</td></tr>
+      <tr><td><code>l.pop()</code>, <code>l.remove(i)</code></td><td>return the element; panic when out of range</td></tr>
+      <tr><td><code>l.get(i)</code>, <code>l.set(i, v)</code>, <code>l[i]</code></td><td>bounds-checked</td></tr>
+      <tr><td><code>l.len()</code>, <code>l.clear()</code>, <code>l.contains(v)</code>, <code>l.index_of(v)</code></td><td></td></tr>
+      <tr><td><code>l.reverse()</code>, <code>l.sort()</code></td><td></td></tr>
+      <tr><td><code>l.span()</code>, <code>l[a:b]</code></td><td>zero-copy <code>Span[T]</code></td></tr>
+      <tr><td><code>Map.new[K, V]()</code></td><td>insertion-ordered map</td></tr>
+      <tr><td><code>m.insert(k, v)</code>, <code>m.remove(k)</code> (returns <code>Option[V]</code>), <code>m.clear()</code></td><td></td></tr>
+      <tr><td><code>m.get(k)</code> (returns <code>Option[V]</code>), <code>m.contains(k)</code>, <code>m.len()</code></td><td></td></tr>
+      <tr><td><code>m.keys()</code>, <code>m.values()</code></td><td><code>List[K]</code> / <code>List[V]</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>math, mem, os, fmt</h3>
+  <table>
+    <thead><tr><th>Module</th><th>Functions</th></tr></thead>
+    <tbody>
+      <tr><td><code>math</code></td><td><code>abs</code>, <code>sqrt</code>, <code>pow</code>, <code>floor</code>, <code>ceil</code>, <code>round</code>, <code>min</code>, <code>max</code>, <code>pi</code>, <code>e</code></td></tr>
+      <tr><td><code>mem</code></td><td><code>Trim()</code> releases unused arena pages and returns bytes freed; <code>Stats()</code> describes the arena</td></tr>
+      <tr><td><code>os</code>, <code>fs</code></td><td><code>args()</code>, <code>exit(code)</code>, <code>File.open/read/read_line/write/close</code></td></tr>
+      <tr><td><code>fmt</code></td><td><code>Print</code>, <code>Println</code>, <code>Eprintln</code>, <code>Format(value, spec)</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="diagnostics">10. Diagnostics</h2>
+  <p>
+    Toolchain messages go to stderr with a source span and a caret; suggestions such as
+    <code>use promote(...)</code> appear as notes. Runtime errors report the function, line and a
+    call trace:
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">runtime error</span></div>
+    <pre><code class="hawk">hawk: runtime error: integer division by zero
+  in helper at line 2
+  called from main (line 5)</code></pre>
+  </div>
+  <p><code>hawk check</code> prints every diagnostic and exits 1 on any error.</p>
+
+  <h2 id="limits">11. Known limitations</h2>
+  <ul>
+    <li><strong>User-defined generics and closures</strong> are parsed but rejected with a pointer
+      to the roadmap; built-in generics infer normally.</li>
+    <li><strong>Owned fields and recursive drops</strong> are staged; containers do not yet recurse
+      into owned elements.</li>
+    <li><strong>Non-lexical lifetimes</strong> are scope-based: drops happen at scope end, before
+      <code>return</code>, and on loop exits, but not at last use.</li>
+    <li><strong>Value semantics for structs</strong> is an AOT decision; the interpreter uses
+      reference semantics for aggregates.</li>
+    <li><strong>AOT compilation, fibers, packages and capability security</strong> are scaffolded
+      and documented in the ADRs.</li>
+    <li><strong>Time and randomness</strong> are deliberately absent from the core so that
+      deterministic simulation testing remains possible.</li>
+  </ul>
+
+  <div class="doc-footer">
+    See also the <a href="architecture.html">architecture guide</a> and the
+    <a href="cli.html">CLI reference</a>. The complete design record lives in
+    <a href="https://github.com/Hawk-CodingLanguage/hawk-core/tree/main/docs/adr">docs/adr</a>.
+  </div>
+</main>
+
+<footer class="site">
+  <div class="wrap footer-grid">
+    <div>
+      <strong style="color:var(--text)">Hawk</strong> — source released under the
+      <a href="https://github.com/Hawk-CodingLanguage/hawk-core/blob/main/LICENSE">MIT License</a>.
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="index.html">Docs</a>
+      <a href="architecture.html">Architecture</a>
+      <a href="cli.html">CLI</a>
+      <a href="https://github.com/sponsors/Hawk-CodingLanguage">Sponsor</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/highlight.js"></script>
+</body>
+</html>
