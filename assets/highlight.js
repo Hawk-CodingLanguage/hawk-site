@@ -7,13 +7,13 @@
     fn: 1, let: 1, var: 1, owned: 1, const: 1, struct: 1, enum: 1, impl: 1,
     if: 1, else: 1, while: 1, for: 1, in: 1, return: 1, break: 1,
     continue: 1, match: 1, region: 1, use: 1, true: 1, false: 1, self: 1,
-    comp: 1, as: 1
+    comp: 1, as: 1, mut: 1, let: 1, var: 1
   };
 
   var TYPES = {
     bool: 1, str: 1, void: 1,
     i8: 1, i16: 1, i32: 1, i64: 1, u8: 1, u16: 1, u32: 1, u64: 1,
-    f32: 1, f64: 1,
+    usize: 1, isize: 1, f32: 1, f64: 1,
     List: 1, Map: 1, Span: 1, Option: 1, Result: 1, String: 1, File: 1,
     Ok: 1, Err: 1, Some: 1, None: 1
   };

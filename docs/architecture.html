@@ -147,7 +147,7 @@ aggregates  GET_FIELD SET_FIELD GET_INDEX GET_SLICE NEW_LIST
 control     JUMP JUMP_IF_FALSE JUMP_IF_TRUE_KEEP JUMP_IF_FALSE_KEEP
 calls       CALL RETURN BUILTIN
 memory      ALLOC_NEW ALLOC_ARRAY PROMOTE REGION_ENTER REGION_EXIT
-ownership   DROP ARENA_REWIND</code></pre>
+failure     ARENA_REWIND</code></pre>
   </div>
   <ul>
     <li><code>?</code> stores its operand in a temp, tests the tag, and on failure emits
@@ -164,7 +164,7 @@ ownership   DROP ARENA_REWIND</code></pre>
   <p>
     Values are tagged: scalars inline, heap objects referenced. Frames record the function,
     instruction pointer, local base and an arena snapshot taken at entry (used by
-    <code>?</code> and destructors). The VM has a 100,000-frame call-depth limit, so runaway
+    <code>?</code>). The VM has a 100,000-frame call-depth limit, so runaway
     recursion fails with a clear error instead of exhausting memory. Builtins are dispatched from
     a single registry shared by the checker, compiler and VM.
   </p>
@@ -205,7 +205,7 @@ trim()    drop trailing slabs and tail capacity (mem.Trim)</code></pre>
       <tr><td>compiler</td><td>structural bytecode invariants over many programs and all examples</td></tr>
       <tr><td>vm</td><td>arena growth, trim, generations, promotion and rewind</td></tr>
       <tr><td>semdiff / hawkpatch</td><td>normalization, change detection, mutation atomicity</td></tr>
-      <tr><td>end-to-end</td><td>full programs, runtime errors, owned files, drop ordering, CLI exit codes</td></tr>
+      <tr><td>end-to-end</td><td>full programs, runtime errors, regions, files, binding semantics, CLI exit codes</td></tr>
     </tbody>
   </table>
 

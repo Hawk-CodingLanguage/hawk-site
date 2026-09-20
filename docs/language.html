@@ -110,9 +110,9 @@ fn main() {
   <div class="code">
     <div class="code-head"><span class="dot"></span><span class="title">interpolation.hawk</span></div>
     <pre><code class="hawk">fn main() {
-    let name = "Ada"
-    let latency = 1.4285
-    let port = 8080
+    name := "Ada"
+    latency := 1.4285
+    port := 8080
 
     println("server {name} on port {port}")
     println("latency {latency:.2} ms")
@@ -134,30 +134,33 @@ fn main() {
       <tr><td><code>bool</code></td><td><code>true</code> and <code>false</code></td></tr>
       <tr><td><code>i8</code>–<code>i64</code>, <code>u8</code>–<code>u64</code></td><td>literals default to <code>i64</code></td></tr>
       <tr><td><code>f32</code>, <code>f64</code></td><td>literals default to <code>f64</code></td></tr>
+      <tr><td><code>usize</code>, <code>isize</code></td><td>platform-sized aliases for <code>u64</code> and <code>i64</code></td></tr>
       <tr><td><code>str</code></td><td>immutable UTF-8 bytes; <code>s[i]</code> yields <code>u8</code>; <code>len</code> counts bytes</td></tr>
       <tr><td><code>List[T]</code></td><td>growable array with reference semantics</td></tr>
       <tr><td><code>Map[K, V]</code></td><td>insertion-ordered; keys must be bool, numeric or <code>str</code></td></tr>
       <tr><td><code>Span[T]</code></td><td>non-owning view over a list or another span</td></tr>
       <tr><td><code>Option[T]</code>, <code>Result[T, E]</code></td><td>built-in enums, exported by <code>std.core</code></td></tr>
-      <tr><td><code>File</code></td><td>operating-system file resource, used with <code>owned</code></td></tr>
+      <tr><td><code>File</code></td><td>operating-system file resource; release explicitly with <code>close()</code></td></tr>
       <tr><td>user <code>struct</code> / <code>enum</code></td><td>named fields and variants, methods via <code>impl</code></td></tr>
     </tbody>
   </table>
   <p>
     There are no implicit numeric conversions except literal adoption:
-    <code>let x: u8 = 5</code> is fine, but assigning an <code>i64</code> variable to a
+    <code>x: u8 = 5</code> is fine, but assigning an <code>i64</code> variable to a
     <code>u8</code> requires <code>value as u8</code>. Casts truncate and wrap like C.
   </p>
 
   <h2 id="bindings">4. Bindings and assignment</h2>
   <div class="code">
     <div class="code-head"><span class="dot"></span><span class="title">bindings.hawk</span></div>
-    <pre><code class="hawk">let  immutable = 1
-var  mutable_value: i64 = 2
-owned file = File.open("out.txt")
+    <pre><code class="hawk">name := "Alice"        // immutable, inferred as str
+port: u16 = 8080       // immutable, explicit type
+mut total := 0         // mutable
+total += 1             // compound assignment
 
-mutable_value += 1
-file.write("data")</code></pre>
+file := File.open("out.txt")
+file.write("data")
+file.close()</code></pre>
   </div>
   <p>
     Assignment targets are variables, struct fields and container elements. Compound assignment
@@ -173,11 +176,11 @@ file.write("data")</code></pre>
 
 while cond { ... }
 
-for var i = 0; i &lt; n; i += 1 { ... }
+for i := 0; i &lt; n; i += 1 { ... }
 for x in collection { ... }        // List, Span, str, Map keys
 for { ... }                        // infinite
 
-let label = match status {
+label := match status {
     200..299 =&gt; "OK",
     400 =&gt; "Bad Request",
     404 =&gt; "Not Found",
@@ -209,13 +212,13 @@ let label = match status {
   <div class="code">
     <div class="code-head"><span class="dot"></span><span class="title">regions.hawk</span></div>
     <pre><code class="hawk">region {
-    let scratch = alloc.NewArray[i64](128)   // zero-initialized
+    scratch := alloc.NewArray[i64](128)      // zero-initialized
     scratch[0] = 1
-    let cell = alloc.New[i64](7)
+    cell := alloc.New[i64](7)
     println(promote(scratch))                // copy outward
 }                                            // reclaimed in O(1)
 
-let released = mem.Trim()</code></pre>
+released := mem.Trim()</code></pre>
   </div>
   <ul>
     <li>Allocation inside a region is a pointer bump; leaving the region restores the arena in a
@@ -229,13 +232,12 @@ let released = mem.Trim()</code></pre>
       releases unused committed capacity.</li>
   </ul>
 
-  <h3>Owned bindings</h3>
+  <h3>Resource cleanup</h3>
   <p>
-    <code>owned x = expr</code> requires a resource type: a struct with a <code>close</code> or
-    <code>drop</code> method, or the built-in <code>File</code>. The destructor runs at the end of
-    the binding's scope, before every <code>return</code>, and before <code>break</code> or
-    <code>continue</code> for scopes opened inside the loop. Explicit <code>close()</code> is
-    allowed and makes the automatic drop a no-op.
+    Resources such as <code>File</code> are ordinary values with no automatic destructor
+    invocation: release them explicitly with <code>close()</code>. Space allocated inside a
+    region is reclaimed when the region exits, and <code>?</code> rewinds the arena to the
+    function-entry mark on failure so abandoned allocations from failed steps do not accumulate.
   </p>
 
   <h3>Zero-copy views</h3>
@@ -255,7 +257,7 @@ let released = mem.Trim()</code></pre>
   <div class="code">
     <div class="code-head"><span class="dot"></span><span class="title">errors.hawk</span></div>
     <pre><code class="hawk">fn parse_double(s: str) -&gt; Result[i64, str] {
-    let n = s.parse_i64()?      // Err(e) returns Err(e)
+    n := s.parse_i64()?         // Err(e) returns Err(e)
     return Ok(n * 2)
 }
 
@@ -304,8 +306,8 @@ fn fib(n: i64) -&gt; i64 {
 const FIB20: i64 = comp { return fib(20) }
 
 const TABLE_SUM: i64 = comp {
-    var total = 0
-    for var i = 0; i &lt; 10; i += 1 { total += i * i }
+    mut total := 0
+    for i := 0; i &lt; 10; i += 1 { total += i * i }
     return total
 }
 
@@ -390,7 +392,7 @@ comp.Assert(BufferSize == 1048576, "buffer size must be 1 MiB")</code></pre>
     <li><strong>User-defined generics and closures</strong> are parsed but rejected with a pointer
       to the roadmap; built-in generics infer normally.</li>
     <li><strong>Owned fields and recursive drops</strong> are staged; containers do not yet recurse
-      into owned elements.</li>
+      into resources held in containers.</li>
     <li><strong>Non-lexical lifetimes</strong> are scope-based: drops happen at scope end, before
       <code>return</code>, and on loop exits, but not at last use.</li>
     <li><strong>Value semantics for structs</strong> is an AOT decision; the interpreter uses

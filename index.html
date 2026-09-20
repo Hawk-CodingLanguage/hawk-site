@@ -63,7 +63,7 @@
       <pre><code class="hawk">use std.core.{ Option, Result }
 
 fn parse_port(text: str) -&gt; Result[u16, str] {
-    let n = text.parse_i64()?
+    n := text.parse_i64()?
     if n &lt; 1 || n &gt; 65535 {
         return Err("port out of range: {n}")
     }
@@ -94,9 +94,9 @@ fn main() {
         <p>Allocation is a pointer bump. Leaving a <code>region</code> reclaims everything in O(1) with no per-object frees and no fragmentation. Lists at the bump head grow in place, and <code>mem.Trim()</code> releases unused pages.</p>
       </div>
       <div class="card">
-        <div class="tag">owned</div>
-        <h3>Deterministic ownership</h3>
-        <p>Resources such as files and sockets use <code>owned</code> bindings with affine move checking. Destructors run at scope exit, before <code>return</code>, and on loop exits — never delayed by a collector.</p>
+        <div class="tag">mut</div>
+        <h3>Explicit mutability</h3>
+        <p>Bindings are immutable by default — <code>x := 1</code>, <code>name: T = value</code> — and <code>mut</code> opts into reassignment. There is no ownership keyword, no lifetime annotation and no borrow checker.</p>
       </div>
       <div class="card">
         <div class="tag blue">Option · Result · ?</div>
@@ -117,7 +117,7 @@ fn main() {
     <div class="section-head">
       <div class="kicker">Language</div>
       <h2>Readable like Go, strict where it matters</h2>
-      <p>Automatic semicolons, <code>let</code> and <code>var</code>, methods on structs, exhaustive <code>match</code>, string interpolation, and built-in generic collections — with no lifetime annotations anywhere.</p>
+      <p>Automatic semicolons, immutable bindings with <code>:=</code> and <code>mut</code> for reassignment, methods on structs, exhaustive <code>match</code>, string interpolation, and built-in generic collections — with no lifetime annotations anywhere.</p>
     </div>
 
     <div class="split">
@@ -164,7 +164,7 @@ fn describe(e: Event) -&gt; str {
     <div class="section-head">
       <div class="kicker">Memory model</div>
       <h2>Arenas you can see, lifetimes you never write</h2>
-      <p>Hawk replaces both manual memory management and tracing collection with two cooperating mechanisms: lexically scoped arenas for bulk data, and <code>owned</code> bindings for resources that need exact destruction moments.</p>
+      <p>Hawk replaces both manual memory management and tracing collection with a single mechanism: lexically scoped arenas for bulk data, with explicit <code>mut</code> bindings and explicit <code>close()</code> calls for resources that need exact release moments.</p>
     </div>
 
     <div class="arena">
@@ -202,7 +202,7 @@ fn describe(e: Event) -&gt; str {
     <div class="grid grid-3" style="margin-top:26px">
       <div class="card">
         <h3>Nothing to collect</h3>
-        <p>No stop-the-world pauses: regions are reclaimed deterministically, and owned values are dropped at precise points — at scope exit, before <code>return</code>, and on loop exits.</p>
+        <p>No stop-the-world pauses: regions are reclaimed deterministically when they exit, and failure paths rewind the bump pointer so abandoned allocations do not accumulate.</p>
       </div>
       <div class="card">
         <h3>Nothing to annotate</h3>
@@ -264,7 +264,7 @@ fn describe(e: Event) -&gt; str {
         <tr><th>Metric</th><th>C</th><th>Go</th><th>Rust</th><th>Hawk</th></tr>
       </thead>
       <tbody>
-        <tr><td>Memory reclamation</td><td>Manual</td><td>Tracing GC</td><td>RAII</td><td>Scoped arenas + NLL drops</td></tr>
+        <tr><td>Memory reclamation</td><td>Manual</td><td>Tracing GC</td><td>RAII / drops</td><td>Scoped arenas + explicit release</td></tr>
         <tr><td>Fragmentation risk</td><td>High</td><td>Low</td><td>High over uptime</td><td>Zero inside regions</td></tr>
         <tr><td>Borrow checker</td><td>None</td><td>None</td><td>Strict lifetimes</td><td>None — lexical ranks</td></tr>
         <tr><td>Deallocation overhead</td><td>O(N) frees</td><td>GC sweeps</td><td>O(N) drops</td><td>O(1) bump reset</td></tr>
@@ -342,7 +342,7 @@ go build -o hawk ./cmd/hawk
       </li>
       <li>
         <span class="badge next">Next</span>
-        <span><span class="what">Full non-lexical lifetimes</span> — owned fields and recursive destruction for containers.</span>
+        <span><span class="what">Tuples and generics</span> — tuple types with destructuring, then user-defined generic functions and types.</span>
       </li>
       <li>
         <span class="badge plan">Planned</span>
