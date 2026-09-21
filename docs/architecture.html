@@ -185,7 +185,7 @@ enter()   push a mark, bump the depth generation
 exit()    restore the mark, advance the generation
 valid(v)  reject values whose (depth, generation) is stale
 atHead()  grow a list in place by advancing the pointer
-trim()    drop trailing slabs and tail capacity (mem.Trim)</code></pre>
+trim()    drop trailing slabs and tail capacity (mem.trim)</code></pre>
   </div>
   <p>
     Exiting a region is a pointer restore: cost does not depend on the number of objects allocated.

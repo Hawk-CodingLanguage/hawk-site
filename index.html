@@ -60,7 +60,8 @@
 
     <div class="code">
       <div class="code-head"><span class="dot"></span><span class="title">errors.hawk</span></div>
-      <pre><code class="hawk">use std.core.{ Option, Result }
+      <pre><code class="hawk">use std.fmt.{ println }
+use std.core.{ Option, Result }
 
 fn parse_port(text: str) -&gt; Result[u16, str] {
     n := text.parse_i64()?
@@ -91,7 +92,7 @@ fn main() {
       <div class="card">
         <div class="tag">region</div>
         <h3>Scoped bump arenas</h3>
-        <p>Allocation is a pointer bump. Leaving a <code>region</code> reclaims everything in O(1) with no per-object frees and no fragmentation. Lists at the bump head grow in place, and <code>mem.Trim()</code> releases unused pages.</p>
+        <p>Allocation is a pointer bump. Leaving a <code>region</code> reclaims everything in O(1) with no per-object frees and no fragmentation. Lists at the bump head grow in place, and <code>mem.trim()</code> releases unused pages.</p>
       </div>
       <div class="card">
         <div class="tag">mut</div>
@@ -106,7 +107,7 @@ fn main() {
       <div class="card">
         <div class="tag green">comp</div>
         <h3>Compile-time evaluation</h3>
-        <p><code>comp(expr)</code> and <code>comp { ... }</code> run normal Hawk code in a sandboxed, step-limited VM and bake the result into the binary. <code>comp.Assert(...)</code> fails the build on bad assumptions.</p>
+        <p><code>comp(expr)</code> and <code>comp { ... }</code> run normal Hawk code in a sandboxed, step-limited VM and bake the result into the binary. <code>comp.assert(...)</code> fails the build on bad assumptions.</p>
       </div>
     </div>
   </div>
@@ -124,7 +125,9 @@ fn main() {
       <div>
         <div class="code">
           <div class="code-head"><span class="dot"></span><span class="title">patterns.hawk</span></div>
-          <pre><code class="hawk">enum Event {
+          <pre><code class="hawk">use std.fmt.{ println }
+
+enum Event {
     Key(KeyEvent),
     Quit
 }
@@ -156,7 +159,7 @@ fn main() {
           <li><strong>Struct patterns and nesting.</strong> Destructuring reads fields directly — no copies, no allocations, no lifetime churn.</li>
           <li><strong>Ranges and or-patterns.</strong> <code>200..299</code>, <code>0x00 | 0xFF</code> and <code>A(n) | B(n)</code> with shared bindings.</li>
           <li><strong>String interpolation.</strong> <code>"port {port} latency {latency:.2}"</code> captures variables, expressions and format specs directly.</li>
-          <li><strong>Explicit imports, no wildcards.</strong> <code>use std.fmt.{ Println, Format }</code> — collisions are impossible by construction.</li>
+          <li><strong>Explicit imports, no wildcards.</strong> <code>use std.fmt.{ println, format }</code> — collisions are impossible by construction.</li>
         </ul>
       </div>
     </div>
@@ -338,7 +341,7 @@ go build -o hawk ./cmd/hawk
       </li>
       <li>
         <span class="badge done">Done</span>
-        <span><span class="what">Compile-time evaluation</span> — <code>comp</code> expressions and blocks, <code>comp.Assert</code>, sandboxed execution quotas.</span>
+        <span><span class="what">Compile-time evaluation</span> — <code>comp</code> expressions and blocks, <code>comp.assert</code>, sandboxed execution quotas.</span>
       </li>
       <li>
         <span class="badge next">Next</span>

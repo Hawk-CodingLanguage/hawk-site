@@ -35,6 +35,8 @@
   <p class="lead">
     This is the reference for the implemented interpreter milestone. Anything not listed here is
     either reported as an explicit unsupported-feature diagnostic or staged in the roadmap.
+    Snippets assume <code>use std.fmt.{ println }</code> where they print: there is no implicit
+    prelude.
   </p>
 
   <nav class="toc" aria-label="Contents">
@@ -62,7 +64,7 @@
   </p>
   <div class="code">
     <div class="code-head"><span class="dot"></span><span class="title">structure.hawk</span></div>
-    <pre><code class="hawk">use std.fmt.{ Println, Format }
+    <pre><code class="hawk">use std.fmt.{ println, format }
 use std.core.{ Option, Result }
 
 const LIMIT: i64 = 10
@@ -74,7 +76,7 @@ impl P {
 }
 
 fn main() {
-    Println("hello")
+    println("hello")
 }</code></pre>
   </div>
   <p>
@@ -86,6 +88,38 @@ fn main() {
     and <code>use std.{ fmt, mem }</code> binds the submodules. Grouped imports may alias members:
     <code>use std.collections.{ List, Span as View }</code>. Type members and enum variants can be
     imported as well: <code>use Shape.{ Circle, Rect }</code>.
+  </p>
+
+  <h3>Naming and visibility</h3>
+  <p>
+    Functions, methods and modules are <code>snake_case</code>; types are <code>PascalCase</code>.
+    Casing never carries meaning — there is exactly one spelling per function
+    (<code>println</code>, <code>is_some</code>, <code>mem.trim</code>, <code>format</code>).
+    Declarations are private by default; <code>pub</code> marks a declaration or member as visible
+    outside its module:
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">visibility.hawk</span></div>
+    <pre><code class="hawk">pub struct Session {
+    pub token: str,
+    expires_at: i64          // private field
+}
+
+impl Session {
+    pub fn is_expired(self, now: i64) -&gt; bool {
+        return self.expires_at &lt; now
+    }
+    fn refresh(self) { ... }  // private method
+}
+
+pub enum Color { Red, Green }
+pub const LIMIT: i64 = 10</code></pre>
+  </div>
+  <p>
+    Importing a member of a user type (<code>use Shape.Circle</code>,
+    <code>use Shape.{ Circle }</code>, <code>use Shape as S</code>) requires the type to be
+    public; access checks for functions, constants and fields across files arrive with local
+    modules.
   </p>
   <div class="callout">
     Wildcards are rejected: <em>wildcard imports are not supported; import names explicitly (no
@@ -220,7 +254,7 @@ label := match status {
     println(promote(scratch))                // copy outward
 }                                            // reclaimed in O(1)
 
-released := mem.Trim()</code></pre>
+released := mem.trim()</code></pre>
   </div>
   <ul>
     <li>Allocation inside a region is a pointer bump; leaving the region restores the arena in a
@@ -230,7 +264,7 @@ released := mem.Trim()</code></pre>
     <li><code>promote(x)</code> copies a value into the enclosing region and is required for
       anything that escapes; escaping without it is a compile error with a
       <code>promote</code> suggestion.</li>
-    <li>Lists sitting at the bump head grow in place without copying; <code>mem.Trim()</code>
+    <li>Lists sitting at the bump head grow in place without copying; <code>mem.trim()</code>
       releases unused committed capacity.</li>
   </ul>
 
@@ -285,8 +319,7 @@ fn first_even(xs: List[i64]) -&gt; Option[i64] {
     </tbody>
   </table>
   <p>
-    Capitalized aliases (<code>IsSome</code>, <code>Unwrap</code>, <code>OkOr</code>, and so on)
-    are available for each method. <code>unwrap</code> on <code>None</code> or <code>Err</code> is
+    <code>unwrap</code> on <code>None</code> or <code>Err</code> is
     a runtime error with a source location and a call trace.
   </p>
 
@@ -313,7 +346,7 @@ const TABLE_SUM: i64 = comp {
     return total
 }
 
-comp.Assert(BufferSize == 1048576, "buffer size must be 1 MiB")</code></pre>
+comp.assert(BufferSize == 1048576, "buffer size must be 1 MiB")</code></pre>
   </div>
   <ul>
     <li><code>comp(expr)</code> infers its type from context; <code>comp { ... }</code> must
@@ -323,14 +356,16 @@ comp.Assert(BufferSize == 1048576, "buffer size must be 1 MiB")</code></pre>
     <li>Evaluation is sandboxed: no <code>os.*</code> or <code>File.*</code>, output is discarded,
       execution is capped at 10^7 VM instructions and 100,000 call frames, and each evaluation uses
       an isolated arena. Results are deterministic.</li>
-    <li><code>comp.Assert(cond, msg)</code> fails the build with
+    <li><code>comp.assert(cond, msg)</code> fails the build with
       <code>compile-time assertion failed: &lt;msg&gt;</code>.</li>
   </ul>
 
   <h2 id="stdlib">9. Standard library</h2>
-  <p>Prelude: <code>print</code>, <code>println</code>, <code>eprintln</code>,
-    <code>len</code>, <code>panic</code>, <code>assert(cond, msg)</code>,
-    <code>promote</code>.</p>
+  <p>There is no implicit prelude. <code>promote</code> is the only
+    always-available intrinsic (a region operation); printing, <code>len</code>,
+    <code>panic</code>, <code>assert</code>, <code>Option</code> and
+    <code>Result</code> are imported from <code>std.fmt</code> and
+    <code>std.core</code>.</p>
 
   <h3>str</h3>
   <table>
@@ -371,7 +406,7 @@ comp.Assert(BufferSize == 1048576, "buffer size must be 1 MiB")</code></pre>
       <tr><td><code>math</code></td><td><code>abs</code>, <code>sqrt</code>, <code>pow</code>, <code>floor</code>, <code>ceil</code>, <code>round</code>, <code>min</code>, <code>max</code>, <code>pi</code>, <code>e</code></td></tr>
       <tr><td><code>mem</code></td><td><code>Trim()</code> releases unused arena pages and returns bytes freed; <code>Stats()</code> describes the arena</td></tr>
       <tr><td><code>os</code>, <code>fs</code></td><td><code>args()</code>, <code>exit(code)</code>, <code>File.open/read/read_line/write/close</code></td></tr>
-      <tr><td><code>fmt</code></td><td><code>Print</code>, <code>Println</code>, <code>Eprintln</code>, <code>Format(value, spec)</code></td></tr>
+      <tr><td><code>fmt</code></td><td><code>print</code>, <code>println</code>, <code>eprintln</code>, <code>format(value, spec)</code></td></tr>
     </tbody>
   </table>
 
