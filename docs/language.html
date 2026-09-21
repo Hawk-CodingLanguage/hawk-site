@@ -81,9 +81,11 @@ fn main() {
     <code>use</code> is the only import keyword and there are no wildcards. Standard library
     modules resolve by canonical path (<code>std.fmt</code>, <code>std.mem</code>,
     <code>std.collections</code>, <code>std.core</code>, <code>std.fs</code>) or by their unique
-    last segment, so <code>math.sqrt(4.0)</code> works without an import. Grouped imports may
-    alias members: <code>use std.collections.{ List, Span as View }</code>. Type members and enum
-    variants can be imported too: <code>use Shape.{ Circle, Rect }</code>.
+    last segment, so <code>math.sqrt(4.0)</code> works without an import. The namespace root and
+    nested modules can be imported too: <code>use std</code> enables <code>std.fmt.println(...)</code>,
+    and <code>use std.{ fmt, mem }</code> binds the submodules. Grouped imports may alias members:
+    <code>use std.collections.{ List, Span as View }</code>. Type members and enum variants can be
+    imported as well: <code>use Shape.{ Circle, Rect }</code>.
   </p>
   <div class="callout">
     Wildcards are rejected: <em>wildcard imports are not supported; import names explicitly (no
