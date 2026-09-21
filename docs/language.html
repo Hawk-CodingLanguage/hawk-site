@@ -48,6 +48,7 @@
       <li><a href="#bindings">Bindings and assignment</a></li>
       <li><a href="#control">Control flow and pattern matching</a></li>
       <li><a href="#memory">Memory: regions, ownership, views</a></li>
+      <li><a href="#functional">Function values and pipelines</a></li>
       <li><a href="#errors">Errors as values</a></li>
       <li><a href="#comptime">Compile-time evaluation</a></li>
       <li><a href="#stdlib">Standard library</a></li>
@@ -287,7 +288,45 @@ released := mem.trim()</code></pre>
     enforce.
   </p>
 
-  <h2 id="errors">7. Errors as values</h2>
+  <h2 id="functional">7. Function values and pipelines</h2>
+  <p>
+    Named functions are values. Function types are written <code>fn(args) -&gt; T</code>, so
+    higher-order functions are ordinary code:
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">functional.hawk</span></div>
+    <pre><code class="hawk">use std.fmt.{ println }
+
+fn double(n: i64) -&gt; i64 { return n * 2 }
+
+fn apply(n: i64, f: fn(i64) -&gt; i64) -&gt; i64 {
+    return f(n)
+}
+
+fn main() {
+    g := double
+    println(g(21))        // calling through a value
+    println(apply(5, g))  // passing it
+}</code></pre>
+  </div>
+  <p>
+    The pipe operator <code>|&gt;</code> inserts the left side as the
+    <strong>first argument</strong> of the right side and is left-associative:
+    <code>x |&gt; f(a)</code> means <code>f(x, a)</code>.
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">pipeline.hawk</span></div>
+    <pre><code class="hawk">total := xs
+    |&gt; list.filter(is_even)
+    |&gt; list.map(square)
+    |&gt; list.fold(0, add)</code></pre>
+  </div>
+  <p>
+    Anonymous functions and captured environments are not implemented yet; callbacks are named
+    functions (built-ins must be wrapped in one to be passed).
+  </p>
+
+  <h2 id="errors">8. Errors as values</h2>
   <p>
     Hawk has no null and no exceptions. Absence and failure are built-in enums imported from
     <code>std.core</code>; tags are fixed at <code>None = 0</code>, <code>Some = 1</code>,
@@ -317,8 +356,8 @@ fn first_even(xs: List[i64]) -&gt; Option[i64] {
   <table>
     <thead><tr><th>Type</th><th>Methods</th></tr></thead>
     <tbody>
-      <tr><td><code>Option[T]</code></td><td><code>is_some</code>, <code>is_none</code>, <code>unwrap</code>, <code>unwrap_or</code>, <code>ok_or(err)</code></td></tr>
-      <tr><td><code>Result[T, E]</code></td><td><code>is_ok</code>, <code>is_err</code>, <code>unwrap</code>, <code>unwrap_err</code>, <code>unwrap_or</code>, <code>ok()</code></td></tr>
+      <tr><td><code>Option[T]</code></td><td><code>is_some</code>, <code>is_none</code>, <code>unwrap</code>, <code>unwrap_or</code>, <code>ok_or(err)</code>, <code>map(f)</code>, <code>and_then(f)</code></td></tr>
+      <tr><td><code>Result[T, E]</code></td><td><code>is_ok</code>, <code>is_err</code>, <code>unwrap</code>, <code>unwrap_err</code>, <code>unwrap_or</code>, <code>ok()</code>, <code>map(f)</code>, <code>map_err(f)</code>, <code>and_then(f)</code></td></tr>
     </tbody>
   </table>
   <p>
@@ -326,7 +365,7 @@ fn first_even(xs: List[i64]) -&gt; Option[i64] {
     a runtime error with a source location and a call trace.
   </p>
 
-  <h2 id="comptime">8. Compile-time evaluation</h2>
+  <h2 id="comptime">9. Compile-time evaluation</h2>
   <p>
     <code>comp</code> runs ordinary Hawk code during compilation using the same checker, compiler
     and virtual machine as the runtime.
@@ -363,7 +402,7 @@ comp.assert(BufferSize == 1048576, "buffer size must be 1 MiB")</code></pre>
       <code>compile-time assertion failed: &lt;msg&gt;</code>.</li>
   </ul>
 
-  <h2 id="stdlib">9. Standard library</h2>
+  <h2 id="stdlib">10. Standard library</h2>
   <p>There is no implicit prelude. <code>promote</code> is the only
     always-available intrinsic (a region operation); printing, <code>len</code>,
     <code>panic</code>, <code>assert</code>, <code>Option</code> and
@@ -395,6 +434,7 @@ comp.assert(BufferSize == 1048576, "buffer size must be 1 MiB")</code></pre>
       <tr><td><code>l.len()</code>, <code>l.clear()</code>, <code>l.contains(v)</code>, <code>l.index_of(v)</code></td><td></td></tr>
       <tr><td><code>l.reverse()</code>, <code>l.sort()</code></td><td></td></tr>
       <tr><td><code>l.span()</code>, <code>l[a:b]</code></td><td>zero-copy <code>Span[T]</code></td></tr>
+      <tr><td><code>l.map(f)</code>, <code>l.filter(f)</code>, <code>l.fold(init, f)</code></td><td>function values; <code>l.for_each(f)</code>, <code>l.any(f)</code>, <code>l.all(f)</code>, <code>l.find(f)</code>, <code>l.sort_by(key)</code></td></tr>
       <tr><td><code>Map.new[K, V]()</code></td><td>insertion-ordered map</td></tr>
       <tr><td><code>m.insert(k, v)</code>, <code>m.remove(k)</code> (returns <code>Option[V]</code>), <code>m.clear()</code></td><td></td></tr>
       <tr><td><code>m.get(k)</code> (returns <code>Option[V]</code>), <code>m.contains(k)</code>, <code>m.len()</code></td><td></td></tr>
@@ -413,7 +453,7 @@ comp.assert(BufferSize == 1048576, "buffer size must be 1 MiB")</code></pre>
     </tbody>
   </table>
 
-  <h2 id="diagnostics">10. Diagnostics</h2>
+  <h2 id="diagnostics">11. Diagnostics</h2>
   <p>
     Toolchain messages go to stderr with a source span and a caret; suggestions such as
     <code>use promote(...)</code> appear as notes. Runtime errors report the function, line and a
@@ -427,7 +467,7 @@ comp.assert(BufferSize == 1048576, "buffer size must be 1 MiB")</code></pre>
   </div>
   <p><code>hawk check</code> prints every diagnostic and exits 1 on any error.</p>
 
-  <h2 id="limits">11. Known limitations</h2>
+  <h2 id="limits">12. Known limitations</h2>
   <ul>
     <li><strong>User-defined generics and closures</strong> are parsed but rejected with a pointer
       to the roadmap; built-in generics infer normally.</li>
