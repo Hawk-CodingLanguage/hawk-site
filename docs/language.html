@@ -248,9 +248,9 @@ label := match status {
   <div class="code">
     <div class="code-head"><span class="dot"></span><span class="title">regions.hawk</span></div>
     <pre><code class="hawk">region {
-    scratch := alloc.NewArray[i64](128)      // zero-initialized
+    scratch := alloc.new_array[i64](128)      // zero-initialized
     scratch[0] = 1
-    cell := alloc.New[i64](7)
+    cell := alloc.new[i64](7)
     println(promote(scratch))                // copy outward
 }                                            // reclaimed in O(1)
 
@@ -259,8 +259,8 @@ released := mem.trim()</code></pre>
   <ul>
     <li>Allocation inside a region is a pointer bump; leaving the region restores the arena in a
       single instruction.</li>
-    <li><code>alloc.New[T](v)</code> allocates an initialized cell;
-      <code>alloc.NewArray[T](n)</code> allocates zeroed elements.</li>
+    <li><code>alloc.new[T](v)</code> allocates an initialized cell;
+      <code>alloc.new_array[T](n)</code> allocates zeroed elements.</li>
     <li><code>promote(x)</code> copies a value into the enclosing region and is required for
       anything that escapes; escaping without it is a compile error with a
       <code>promote</code> suggestion.</li>
