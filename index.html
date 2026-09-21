@@ -143,6 +143,10 @@ fn describe(e: Event) -&gt; str {
         Key(KeyEvent { pressed: false }) =&gt; "released",
         Quit =&gt; "quit"
     }
+}
+
+fn main() {
+    println(describe(Event.Key(KeyEvent { key: 3, pressed: true })))
 }</code></pre>
         </div>
       </div>
