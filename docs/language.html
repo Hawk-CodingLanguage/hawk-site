@@ -80,8 +80,8 @@ fn main() {
 }</code></pre>
   </div>
   <p>
-    <code>use</code> is the only import keyword and there are no wildcards. Standard library
-    modules resolve by canonical path (<code>std.fmt</code>, <code>std.mem</code>,
+    <code>use</code> is the only import keyword and there are no wildcards. The allocation
+    intrinsics need <code>use alloc</code>. Standard library modules resolve by canonical path (<code>std.fmt</code>, <code>std.mem</code>,
     <code>std.collections</code>, <code>std.core</code>, <code>std.fs</code>) or by their unique
     last segment, so <code>math.sqrt(4.0)</code> works without an import. The namespace root and
     nested modules can be imported too: <code>use std</code> enables <code>std.fmt.println(...)</code>,
@@ -247,7 +247,10 @@ label := match status {
   <h3>Scoped arenas</h3>
   <div class="code">
     <div class="code-head"><span class="dot"></span><span class="title">regions.hawk</span></div>
-    <pre><code class="hawk">region {
+    <pre><code class="hawk">use alloc
+use std.mem.{ trim }
+
+region {
     scratch := alloc.new_array[i64](128)      // zero-initialized
     scratch[0] = 1
     cell := alloc.new[i64](7)
