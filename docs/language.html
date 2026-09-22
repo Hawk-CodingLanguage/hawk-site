@@ -272,12 +272,49 @@ released := mem.trim()</code></pre>
       releases unused committed capacity.</li>
   </ul>
 
-  <h3>Resource cleanup</h3>
+  <h3>Resources (<code>res</code>) and <code>defer</code></h3>
   <p>
-    Resources such as <code>File</code> are ordinary values with no automatic destructor
-    invocation: release them explicitly with <code>close()</code>. Space allocated inside a
-    region is reclaimed when the region exits, and <code>?</code> rewinds the arena to the
-    function-entry mark on failure so abandoned allocations from failed steps do not accumulate.
+    <code>File</code> and user-declared <code>res struct</code> types are affine resources: values
+    are move-only and must be consumed exactly once before their scope exits. There are no implicit
+    destructors &mdash; cleanup is always visible in the source.
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">resources.hawk</span></div>
+    <pre><code class="hawk">use std.fmt.{ println }
+
+res struct Guard {
+    name: str
+}
+
+impl Guard {
+    fn label(*self) -&gt; str { return self.name }
+    fn close(self) { println("closed {self.name}") }
+}
+
+fn main() {
+    g := Guard { name: "alpha" }
+    defer g.close()            // registers the final consumption
+    println("using {g.label()}")
+}                              // defer runs here (LIFO, on every exit path)</code></pre>
+  </div>
+  <ul>
+    <li>Binding, moving into another <code>res</code> binding, or passing a resource to a parameter
+      transfers the consumption obligation; copying it anywhere else is an error.</li>
+    <li>Every resource must be consumed on every path by a consuming method call or a
+      <code>defer</code>, or the checker reports
+      <code>resource 'g' is not finalized before scope exit</code>.</li>
+    <li><code>defer stmt</code> runs LIFO on normal exit, <code>?</code> propagation,
+      <code>return</code>, <code>break</code> and <code>continue</code> (not on VM panic, which
+      aborts).</li>
+    <li>A plain <code>self</code> receiver <em>consumes</em> on a <code>res</code> type;
+      <code>*self</code> and <code>*mut self</code> are lexical borrows.</li>
+    <li>Resources cannot be stored in lists, struct fields or maps, formatted, promoted, or passed
+      to builtins.</li>
+  </ul>
+  <p>
+    Space allocated inside a region is reclaimed when the region exits, and <code>?</code> rewinds
+    the arena to the function-entry mark on failure so abandoned allocations from failed steps do
+    not accumulate. Defers run before region exits and before that rewind.
   </p>
 
   <h3>Zero-copy views</h3>
@@ -471,10 +508,13 @@ comp.assert(BufferSize == 1048576, "buffer size must be 1 MiB")</code></pre>
   <ul>
     <li><strong>User-defined generics and closures</strong> are parsed but rejected with a pointer
       to the roadmap; built-in generics infer normally.</li>
-    <li><strong>Owned fields and recursive drops</strong> are staged; containers do not yet recurse
-      into resources held in containers.</li>
-    <li><strong>Non-lexical lifetimes</strong> are scope-based: drops happen at scope end, before
-      <code>return</code>, and on loop exits, but not at last use.</li>
+    <li><strong>Resource details</strong>: <code>res</code> fields, containers of resources,
+      general <code>*T</code>/<code>*mut T</code> pointer types, call-site <code>&amp;x</code>
+      borrows, fallible <code>fs.open</code>/<code>close</code> and defer execution during panics
+      are staged in ADR&nbsp;0027.</li>
+    <li><strong>Cleanup is explicit</strong>: no implicit destructors. A <code>defer</code> runs at
+      scope exit (end of block, <code>return</code>, loop exit, <code>?</code>), with no
+      last-use inference.</li>
     <li><strong>Value semantics for structs</strong> is an AOT decision; the interpreter uses
       reference semantics for aggregates.</li>
     <li><strong>AOT compilation, fibers, packages and capability security</strong> are scaffolded

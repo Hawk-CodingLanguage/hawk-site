@@ -171,7 +171,7 @@ fn main() {
     <div class="section-head">
       <div class="kicker">Memory model</div>
       <h2>Arenas you can see, lifetimes you never write</h2>
-      <p>Hawk replaces both manual memory management and tracing collection with a single mechanism: lexically scoped arenas for bulk data, with explicit <code>mut</code> bindings and explicit <code>close()</code> calls for resources that need exact release moments.</p>
+      <p>Hawk replaces both manual memory management and tracing collection with a single mechanism: lexically scoped arenas for bulk data, with explicit <code>mut</code> bindings and explicit <code>close()</code> or <code>defer</code> for resources that need exact release moments.</p>
     </div>
 
     <div class="arena">
