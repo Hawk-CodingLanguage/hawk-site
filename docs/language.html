@@ -394,8 +394,11 @@ fn main() {
   <ul>
     <li><code>&amp;x</code> and <code>*p</code> are safe when the target is an aggregate
       (struct, enum, list, map, span): aggregates are references, so
-      <code>bump(&amp;counter)</code> needs no <code>unsafe</code>. Scalar addresses and
-      dereferences require <code>unsafe { ... }</code>.</li>
+      <code>bump(&amp;counter)</code> needs no <code>unsafe</code>.</li>
+    <li><strong>Interior references</strong> work too: <code>&amp;s.field</code>,
+      <code>&amp;p-&gt;field</code>, <code>&amp;list[i]</code> and <code>&amp;span[i]</code>;
+      aggregate targets are safe, scalar targets need <code>unsafe</code> and produce a
+      cell into the field or element.</li>
     <li><code>&amp;x</code> gives <code>*mut T</code> for mutable bindings and <code>*T</code>
       otherwise; writing through <code>*T</code> is rejected. <code>&amp;s.field</code> and
       <code>&amp;list[i]</code> are not supported yet.</li>
