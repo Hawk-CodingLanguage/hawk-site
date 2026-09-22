@@ -326,6 +326,45 @@ fn main() {
     not accumulate. Defers run before region exits and before that rewind.
   </p>
 
+  <h3>References (<code>*T</code>, <code>*mut T</code>) and constructors</h3>
+  <p>
+    <code>*T</code> is a read-only reference, <code>*mut T</code> a mutable one. Value literals and
+    region-allocated references are separate spellings (ADR&nbsp;0029):
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">references.hawk</span></div>
+    <pre><code class="hawk">struct User { pub id: u64, pub name: str }
+
+impl User {
+    fn rename(self: *mut User, name: str) { self.name = name }
+    fn label(*self) -&gt; str { return self.name }
+}
+
+fn main() {
+    value := User { id: 1, name: "Alice" }   // value literal
+    ref := User.new({ id: 2, name: "Bob" })  // *mut User in the active region
+    ref.rename("Robert")
+    ro: *User = ref                          // *mut T widens to *T
+    println(ro.label())
+}</code></pre>
+  </div>
+  <ul>
+    <li><code>S { ... }</code> builds a value; <code>S.new({ ... })</code> is synthesized for every
+      non-resource struct, allocates in the active region and returns <code>*mut S</code>.</li>
+    <li>Field reads and <code>*self</code> methods work through both pointer types; writes and
+      <code>*mut self</code> methods need <code>*mut T</code>.</li>
+    <li><code>impl</code> blocks may declare associated functions without <code>self</code>
+      (<code>Type.create(...)</code>); a user <code>fn new</code> overrides the synthesized one, so
+      validation and private fields work:
+      <code>fn new(url: str) -&gt; Result[*mut Connection, str]</code>. Inside it,
+      <code>alloc.new(value)</code> returns <code>*mut T</code> when a pointer is expected.</li>
+    <li>References follow region rules: escaping a <code>region</code> needs
+      <code>promote(p)</code>, and an expired reference fails at runtime.</li>
+    <li>Stage 1 restrictions: no pointer fields, pointers in enum payloads or lists, pointer
+      arithmetic, null or <code>&amp;x</code> borrow expressions; <code>*mut T</code> is unchecked
+      aliasing.</li>
+  </ul>
+
   <h3>Zero-copy views</h3>
   <p>
     Slicing a <code>str</code> shares its bytes. <code>list.span()</code> and
@@ -518,9 +557,11 @@ comp.assert(BufferSize == 1048576, "buffer size must be 1 MiB")</code></pre>
     <li><strong>User-defined generics and closures</strong> are parsed but rejected with a pointer
       to the roadmap; built-in generics infer normally.</li>
     <li><strong>Resource details</strong>: <code>res</code> fields, containers of resources,
-      general <code>*T</code>/<code>*mut T</code> pointer types, call-site <code>&amp;x</code>
-      borrows, fallible <code>fs.open</code>/<code>close</code> and defer execution during panics
-      are staged in ADR&nbsp;0027.</li>
+      fallible <code>fs.open</code>/<code>close</code> and defer execution during panics are
+      staged in ADR&nbsp;0027.</li>
+    <li><strong>Reference details</strong>: pointer fields and containers, pointer equality and
+      null, <code>&amp;x</code> borrow expressions and custom allocator parameters are staged in
+      ADR&nbsp;0029.</li>
     <li><strong>Cleanup is explicit</strong>: no implicit destructors. A <code>defer</code> runs at
       scope exit (end of block, <code>return</code>, loop exit, <code>?</code>), with no
       last-use inference.</li>
