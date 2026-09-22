@@ -361,8 +361,44 @@ fn main() {
     <li>References follow region rules: escaping a <code>region</code> needs
       <code>promote(p)</code>, and an expired reference fails at runtime.</li>
     <li>Stage 1 restrictions: no pointer fields, pointers in enum payloads or lists, pointer
-      arithmetic, null or <code>&amp;x</code> borrow expressions; <code>*mut T</code> is unchecked
-      aliasing.</li>
+      arithmetic or pointer indexing; <code>*mut T</code> is unchecked aliasing.</li>
+  </ul>
+
+  <h3>Globals and <code>unsafe</code></h3>
+  <p>
+    Top-level <code>mut</code> declarations are module-level state, initialized once before
+    <code>main</code> and readable/writable from every function. Raw pointer operations are confined
+    to <code>unsafe</code> blocks, and there is no null: absence is always <code>Option[T]</code>
+    (ADR&nbsp;0030).
+  </p>
+  <div class="code">
+    <div class="code-head"><span class="dot"></span><span class="title">unsafe.hawk</span></div>
+    <pre><code class="hawk">mut counter: i64 = 10
+
+fn inc(p: *mut i64) {
+    unsafe {
+        *p += 1
+    }
+}
+
+fn main() {
+    unsafe {
+        inc(&amp;counter)              // address of a whole binding
+        println(*(&amp;counter))       // read through a pointer
+    }
+    println(counter)               // 11
+}</code></pre>
+  </div>
+  <ul>
+    <li><code>unsafe { ... }</code> is required for <code>&amp;x</code>, <code>*p</code> reads,
+      writes and compound assignment; outside it both are compile errors.</li>
+    <li><code>&amp;x</code> gives <code>*mut T</code> for mutable bindings and <code>*T</code>
+      otherwise; writing through <code>*T</code> is rejected. <code>&amp;s.field</code> and
+      <code>&amp;list[i]</code> are not supported yet.</li>
+    <li>Address-taken locals are backed by arena cells, so a pointer that outlives its region fails
+      with <code>use of value from an expired region</code>; globals use stable slots.</li>
+    <li>There is no null literal and no null pointer value; the C converter maps C pointers to
+      <code>Option[*mut T]</code> and <code>NULL</code> to <code>None</code>.</li>
   </ul>
 
   <h3>Zero-copy views</h3>
@@ -559,9 +595,10 @@ comp.assert(BufferSize == 1048576, "buffer size must be 1 MiB")</code></pre>
     <li><strong>Resource details</strong>: <code>res</code> fields, containers of resources,
       fallible <code>fs.open</code>/<code>close</code> and defer execution during panics are
       staged in ADR&nbsp;0027.</li>
-    <li><strong>Reference details</strong>: pointer fields and containers, pointer equality and
-      null, <code>&amp;x</code> borrow expressions and custom allocator parameters are staged in
-      ADR&nbsp;0029.</li>
+    <li><strong>Reference details</strong>: pointer fields and containers, pointer indexing and
+      arithmetic, pointer casts and equality, interior addresses
+      (<code>&amp;s.field</code>, <code>&amp;list[i]</code>) and custom allocator parameters are
+      staged in ADR&nbsp;0029 and ADR&nbsp;0030. Null is deliberately not part of the language.</li>
     <li><strong>Cleanup is explicit</strong>: no implicit destructors. A <code>defer</code> runs at
       scope exit (end of block, <code>return</code>, loop exit, <code>?</code>), with no
       last-use inference.</li>
