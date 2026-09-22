@@ -392,8 +392,10 @@ fn main() {
 }</code></pre>
   </div>
   <ul>
-    <li><code>unsafe { ... }</code> is required for <code>&amp;x</code>, <code>*p</code> reads,
-      writes and compound assignment; outside it both are compile errors.</li>
+    <li><code>&amp;x</code> and <code>*p</code> are safe when the target is an aggregate
+      (struct, enum, list, map, span): aggregates are references, so
+      <code>bump(&amp;counter)</code> needs no <code>unsafe</code>. Scalar addresses and
+      dereferences require <code>unsafe { ... }</code>.</li>
     <li><code>&amp;x</code> gives <code>*mut T</code> for mutable bindings and <code>*T</code>
       otherwise; writing through <code>*T</code> is rejected. <code>&amp;s.field</code> and
       <code>&amp;list[i]</code> are not supported yet.</li>
