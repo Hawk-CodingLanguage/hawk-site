@@ -200,10 +200,19 @@ file.write("data")
 file.close()</code></pre>
   </div>
   <p>
-    Assignment targets are variables, struct fields and container elements. Compound assignment
-    exists for every arithmetic and bitwise operator. Owned values are affine: assigning, passing or
-    returning them moves ownership, and using a moved value is a compile error. Method receivers
-    are borrowed, so calling <code>file.write(...)</code> does not consume the handle.
+    Assignment targets are variables, struct fields and container elements. Writing a struct field
+    needs a <code>mut</code> binding (or a <code>*mut self</code> receiver); reference-like
+    containers (<code>List</code>, <code>Map</code>, <code>Span</code>) stay writable through an
+    immutable binding. Compound assignment exists for every arithmetic and bitwise operator. Owned
+    values are affine: assigning, passing or returning them moves ownership, and using a moved value
+    is a compile error.
+  </p>
+  <p>
+    Method receivers select what a method may do: <code>self</code> is a plain receiver (mutable
+    for ordinary types, consuming for <code>res</code> types), <code>*self</code> is a read-only
+    borrow whose body cannot assign fields, and <code>*mut self</code> is a mutable borrow that
+    requires a <code>mut</code> binding at the call site. Fields are private to their module unless
+    declared <code>pub</code>.
   </p>
 
   <h2 id="control">5. Control flow and pattern matching</h2>
