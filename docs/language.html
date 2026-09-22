@@ -360,8 +360,10 @@ fn main() {
       <code>alloc.new(value)</code> returns <code>*mut T</code> when a pointer is expected.</li>
     <li>References follow region rules: escaping a <code>region</code> needs
       <code>promote(p)</code>, and an expired reference fails at runtime.</li>
-    <li>Stage 1 restrictions: no pointer fields, pointers in enum payloads or lists, pointer
-      arithmetic or pointer indexing; <code>*mut T</code> is unchecked aliasing.</li>
+    <li>Stage 1 restrictions: pointers in enum payloads or lists, pointer arithmetic or pointer
+      indexing are not available; pointer fields hold raw <code>*T</code>/<code>*mut T</code>
+      (nullable links use <code>Option[*T]</code>), and <code>*mut T</code> is unchecked
+      aliasing.</li>
   </ul>
 
   <h3>Globals and <code>unsafe</code></h3>
